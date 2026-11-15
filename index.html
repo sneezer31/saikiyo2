@@ -2,434 +2,113 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
-<title>さいきよ2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポータル - さいきよ経済圏</title>
 <style>
   :root {
-    --bg-color: #FDFBF6; --text-color: #1A1A1A;
-    --header-bg: #EAE6DF; --footer-bg: rgba(234, 230, 223, 0.85);
-    --console-bg: rgba(253, 251, 246, 0.95);
-    --font-size: 18px; --line-height: 1.8;
+    --bg-color: #FDFBF6;
+    --text-color: #1A1A1A;
+    --btn-bg: #EAE6DF;
   }
+
   body {
-    margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-color);
-    font-family: sans-serif; overflow: hidden; height: 100dvh; display: flex; flex-direction: column;
+    margin: 0; padding: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100dvh;
+    padding: 20px;
+    box-sizing: border-box;
   }
 
-  /* --- ヘッダー（帰還のボタン） --- */
-  header {
-    flex-shrink: 0; display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 15px; background-color: var(--header-bg); border-bottom: 1px solid var(--text-color); z-index: 200;
-  }
-  .header-left { display: flex; gap: 15px; }
-  header button { background: none; border: none; color: var(--text-color); font-size: 1.4rem; cursor: pointer; padding: 0; }
-  #btn-top { font-weight: bold; font-size: 1.1rem; } /* 最新へ巻き戻すボタン */
-
-  /* --- 海（タイムライン） --- */
-  #timeline {
-    flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 90px;
-    overscroll-behavior-y: none;
-  }
-  .card {
-    background: #FFF; border: 1px solid #CCC; padding: 10px; margin-bottom: 15px;
-    border-radius: 4px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-    display: flex; gap: 10px; align-items: flex-start;
-  }
-  .card-check { margin-top: 5px; transform: scale(1.3); }
-  .card-body {
-    flex: 1; font-size: var(--font-size); line-height: var(--line-height);
-    white-space: pre-wrap; word-break: break-all; cursor: pointer;
-  }
-  .card-meta { font-size: 0.8rem; color: #666; margin-top: 10px; border-top: 1px dashed #CCC; padding-top: 5px; line-height: 1.4; }
-
-  /* --- ボトムバー（フッター） --- */
-  #bottom-bar {
-    position: fixed; bottom: 0; left: 0; right: 0; height: 60px;
-    background: var(--footer-bg); backdrop-filter: blur(5px);
-    border-top: 1px solid var(--text-color); z-index: 100;
-    display: flex; justify-content: flex-end; align-items: center; padding: 0 15px; gap: 15px;
-  }
-  #bottom-bar-title { font-weight: bold; font-size: 1.1rem; color: var(--text-color); }
-  #btn-fab {
-    width: 44px; height: 44px; border-radius: 50%;
-    background: var(--text-color); color: var(--bg-color);
-    border: none; font-size: 1.8rem; font-weight: bold; cursor: pointer;
-    display: flex; justify-content: center; align-items: center;
-  }
-  /* 選択モード時のフッター変化 */
-  #selection-bar { display: none; width: 100%; justify-content: space-between; align-items: center; font-weight: bold; }
-  #bottom-bar.selection-mode #normal-bar { display: none; }
-  #bottom-bar.selection-mode #selection-bar { display: flex; }
-  .btn-action { padding: 8px 12px; background: var(--text-color); color: var(--bg-color); border: none; border-radius: 4px; font-weight: bold; cursor: pointer;}
-
-  /* --- せり上がるコンソール --- */
-  #console-area {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--console-bg); border-top: 2px solid var(--text-color);
-    padding: 10px; z-index: 150;
-    transform: translateY(120%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-    display: grid; grid-template-columns: 70px 1fr 70px; gap: 5px; align-items: flex-end;
-  }
-  #console-area.open { transform: translateY(0); }
-  .console-btn {
-    width: 100%; height: 54px; font-weight: bold; font-size: 1rem;
-    border-radius: 4px; cursor: pointer; line-height: 1.2;
-  }
-  #btn-search { grid-column: 1; grid-row: 1; background: var(--header-bg); color: var(--text-color); border: 1px solid var(--text-color); }
-  #btn-send { grid-column: 3; grid-row: 1; background: var(--text-color); color: var(--bg-color); border: none; }
-  
-  #input-content {
-    grid-column: 2; grid-row: 1; min-height: 54px; max-height: 30vh;
-    padding: 10px; box-sizing: border-box; font-size: 1.1rem; font-family: inherit;
-    border: 1px solid var(--text-color); border-radius: 4px; resize: none; overflow-y: auto;
-  }
-  /* サジェスト回避の textarea 1行ハック */
-  #input-tags {
-    grid-column: 2; grid-row: 2; height: 40px; min-height: 40px;
-    padding: 8px 10px; box-sizing: border-box; font-size: 1rem; font-family: inherit;
-    border: 1px solid var(--text-color); border-radius: 4px; resize: none; white-space: nowrap; overflow: hidden;
+  .portal-container {
+    width: 100%;
+    max-width: 400px;
   }
 
-  /* --- 個別編集パネル --- */
-  .panel {
-    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100dvh;
-    background: var(--bg-color); z-index: 300; padding: 20px; box-sizing: border-box; overflow-y: auto;
+  h1 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 40px;
+    letter-spacing: 4px;
+    border-bottom: 1px solid var(--text-color);
+    padding-bottom: 10px;
   }
-  .panel.active { display: block; }
-  .panel-header { display: flex; justify-content: space-between; border-bottom: 2px solid var(--text-color); margin-bottom: 15px; padding-bottom: 10px; }
-  .panel-header h2 { margin: 0; font-size: 1.2rem; }
-  .panel-header button { background: none; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; }
-  
-  /* 編集画面のレイアウト */
-  .edit-readonly { background: #EEE; padding: 10px; border-radius: 4px; margin-bottom: 15px; white-space: pre-wrap; font-size: 1.1rem; }
-  .edit-group { margin-bottom: 15px; }
-  .edit-group label { display: block; font-weight: bold; margin-bottom: 5px; }
-  .edit-group textarea { width: 100%; box-sizing: border-box; padding: 10px; font-size: 1rem; border: 1px solid var(--text-color); border-radius: 4px; font-family: inherit; resize: vertical; }
-  #edit-memo { height: 80px; }
-  #edit-tags { height: 60px; }
-  /* タグ入力補助ボタン */
-  .tag-helpers { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-  .tag-helpers button { background: var(--header-bg); border: 1px solid #CCC; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-  #btn-save-edit { width: 100%; padding: 12px; background: var(--text-color); color: var(--bg-color); font-size: 1.1rem; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
 
+  .menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .menu-item {
+    display: block;
+    text-decoration: none;
+    background: var(--btn-bg);
+    color: var(--text-color);
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid var(--text-color);
+    box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  .menu-item:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+  }
+
+  .menu-title {
+    display: block;
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+
+  .menu-desc {
+    display: block;
+    font-size: 0.85rem;
+    color: #555;
+  }
 </style>
 </head>
 <body>
 
-  <!-- ヘッダー（天井） -->
-  <header>
-    <div class="header-left">
-      <button id="btn-config">≡</button>
-      <button id="btn-calendar">📅</button>
-      <button id="btn-kansei">管制</button>
-    </div>
-    <!-- タイトル兼、最新へ巻き戻すボタン -->
-    <button id="btn-top">さいきよ</button>
-  </header>
-
-  <!-- 海（タイムライン） -->
-  <main id="timeline"></main>
-
-  <!-- ボトムバー（フッター） -->
-  <div id="bottom-bar">
-    <!-- 通常モード -->
-    <div id="normal-bar" style="display: flex; align-items: center; gap: 10px; width: 100%; justify-content: flex-end;">
-      <span id="bottom-bar-title">さいきよ2</span>
-      <button id="btn-fab">＋</button>
-    </div>
-    <!-- 選択モード -->
-    <div id="selection-bar">
-      <span id="selection-count">0件選択中</span>
-      <div style="display: flex; gap: 10px;">
-        <button id="btn-to-desk" class="btn-action">机へ</button>
-        <button id="btn-cancel-select" class="btn-action" style="background:#666;">取消</button>
-      </div>
-    </div>
+<div class="portal-container">
+  <h1>ポータル</h1>
+  
+  <div class="menu-list">
+    <a href="saikiyo2.html" class="menu-item">
+      <span class="menu-title">海（さいきよ2）</span>
+      <span class="menu-desc">閲覧・推敲・タグ管理・増殖</span>
+    </a>
+    
+    <a href="rensaku.html" class="menu-item">
+      <span class="menu-title">机（れんさく）</span>
+      <span class="menu-desc">タロットカードの展開と物理D&D</span>
+    </a>
+    
+    <a href="tategaki.html" class="menu-item">
+      <span class="menu-title">アトリエ（たてがき）</span>
+      <span class="menu-desc">縦書き画像への視覚定着</span>
+    </a>
+    
+    <a href="data-manage.html" class="menu-item">
+      <span class="menu-title">管理局</span>
+      <span class="menu-desc">データのインポートと物理削除(GC)</span>
+    </a>
+    
+    <a href="mail-sync.html" class="menu-item">
+      <span class="menu-title">公証の金庫</span>
+      <span class="menu-desc">自分宛てメールによる絶対タイムスタンプ</span>
+    </a>
   </div>
+</div>
 
-  <!-- せり上がるコンソール -->
-  <div id="console-area">
-    <button id="btn-search" class="console-btn">検索<br><span style="font-size:0.7rem;">(推敲)</span></button>
-    <textarea id="input-content" placeholder="本文を入力..."></textarea>
-    <button id="btn-send" class="console-btn">送信<br><span style="font-size:0.7rem;">(放流)</span></button>
-    <textarea id="input-tags" placeholder="タグ（#作品 #アーカイブ 等）"></textarea>
-  </div>
-
-  <!-- 個別編集パネル -->
-  <div id="panel-edit" class="panel">
-    <div class="panel-header">
-      <h2>メタデータ編集</h2>
-      <button id="btn-close-edit">✕</button>
-    </div>
-    <div class="edit-readonly" id="edit-content-view"></div>
-    
-    <div class="edit-group">
-      <label>メタメモ</label>
-      <textarea id="edit-memo" placeholder="裏書き..."></textarea>
-    </div>
-    
-    <div class="edit-group">
-      <label>タグ</label>
-      <textarea id="edit-tags" placeholder="タグ..."></textarea>
-      <div class="tag-helpers">
-        <button class="helper-tag">#作品</button>
-        <button class="helper-tag">#アーカイブ</button>
-        <button class="helper-tag">#ゴミ</button>
-        <button class="helper-tag">#未発表</button>
-        <button class="helper-tag">#既発表</button>
-      </div>
-    </div>
-    
-    <button id="btn-save-edit">保存</button>
-  </div>
-
-<script>
-/** さいきよ2 - 推敲ロジックと編集動線の実装 */
-
-// --- 1. IndexedDB 配管 ---
-const DB_NAME = 'saikiyo2_db';
-const STORE_NAME = 'cards';
-let db;
-
-function initDB() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (e) => {
-      db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-    };
-    request.onsuccess = (e) => { db = e.target.result; resolve(); };
-    request.onerror = (e) => reject(e);
-  });
-}
-
-function saveCard(card) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(card);
-    tx.oncomplete = () => resolve();
-    tx.onerror = (e) => reject(e);
-  });
-}
-
-function loadAllCards() {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const request = tx.objectStore(STORE_NAME).getAll();
-    request.onsuccess = (e) => resolve(e.target.result);
-    request.onerror = (e) => reject(e);
-  });
-}
-
-// --- 2. 状態管理（推敲と選択） ---
-let state = {
-  suikoVisibleIds: null, // nullなら全表示、配列なら推敲モード
-  selectedIds: new Set(),
-  editingCardId: null // 個別編集中のID
-};
-
-const DOM = {
-  timeline: document.getElementById('timeline'),
-  btnTop: document.getElementById('btn-top'),
-  btnFab: document.getElementById('btn-fab'),
-  bottomBar: document.getElementById('bottom-bar'),
-  selectionCount: document.getElementById('selection-count'),
-  btnCancelSelect: document.getElementById('btn-cancel-select'),
-  btnToDesk: document.getElementById('btn-to-desk'),
-  consoleArea: document.getElementById('console-area'),
-  inputContent: document.getElementById('input-content'),
-  inputTags: document.getElementById('input-tags'),
-  btnSearch: document.getElementById('btn-search'),
-  btnSend: document.getElementById('btn-send'),
-  panelEdit: document.getElementById('panel-edit'),
-  btnCloseEdit: document.getElementById('btn-close-edit'),
-  editContentView: document.getElementById('edit-content-view'),
-  editMemo: document.getElementById('edit-memo'),
-  editTags: document.getElementById('edit-tags'),
-  btnSaveEdit: document.getElementById('btn-save-edit')
-};
-
-// --- 3. UI 制御 ---
-
-// 最新へ巻き戻す（一番下へスクロール）
-DOM.btnTop.addEventListener('click', () => {
-  DOM.timeline.scrollTo({ top: DOM.timeline.scrollHeight, behavior: 'smooth' });
-});
-
-// ＋ボタンでコンソール開閉
-let isInputMode = false;
-DOM.btnFab.addEventListener('click', () => {
-  isInputMode = !isInputMode;
-  if (isInputMode) {
-    DOM.consoleArea.classList.add('open');
-    DOM.btnFab.innerText = '✕';
-    setTimeout(() => DOM.inputContent.focus(), 100);
-  } else {
-    DOM.consoleArea.classList.remove('open');
-    DOM.btnFab.innerText = '＋';
-    DOM.inputContent.blur();
-  }
-});
-
-// 本文入力窓の自動拡張
-DOM.inputContent.addEventListener('input', function() {
-  this.style.height = 'auto';
-  this.style.height = this.scrollHeight + 'px';
-});
-
-// --- 4. メインループ（描画と推敲ハック） ---
-async function renderTimeline() {
-  const allCards = await loadAllCards();
-  DOM.timeline.innerHTML = '';
-  
-  // 推敲ハック：suikoVisibleIds があればそれで絞り込む（アーカイブ除外等は後日実装）
-  const displayCards = state.suikoVisibleIds 
-    ? allCards.filter(c => state.suikoVisibleIds.includes(c.id))
-    : allCards;
-
-  // 時系列順に描画
-  displayCards.sort((a, b) => a.id - b.id).forEach(card => {
-    const div = document.createElement('div');
-    div.className = 'card';
-    
-    // チェックボックス
-    const chk = document.createElement('input');
-    chk.type = 'checkbox';
-    chk.className = 'card-check';
-    chk.checked = state.selectedIds.has(card.id);
-    chk.addEventListener('change', (e) => {
-      if(e.target.checked) state.selectedIds.add(card.id);
-      else state.selectedIds.delete(card.id);
-      updateSelectionBar();
-    });
-
-    // 本文とメタ情報（タップで個別編集へ）
-    const body = document.createElement('div');
-    body.className = 'card-body';
-    const safeContent = card.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const dateStr = new Date(card.id).toLocaleString();
-    const tagStr = card.tags ? card.tags.join(' ') : '';
-    body.innerHTML = `
-      <div>${safeContent}</div>
-      <div class="card-meta">${dateStr}<br>${tagStr}</div>
-    `;
-    body.addEventListener('click', () => openEditPanel(card));
-
-    div.appendChild(chk);
-    div.appendChild(body);
-    DOM.timeline.appendChild(div);
-  });
-  
-  // 全表示の時は常に最新へスクロール（推敲中はスクロール位置を維持したいが、簡略化のため下へ）
-  DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
-}
-
-// 選択バーの表示制御
-function updateSelectionBar() {
-  const count = state.selectedIds.size;
-  if (count > 0) {
-    DOM.bottomBar.classList.add('selection-mode');
-    DOM.selectionCount.innerText = `${count}件選択中`;
-    DOM.consoleArea.classList.remove('open'); // 選択中はコンソールを引っ込める
-    isInputMode = false; DOM.btnFab.innerText = '＋';
-  } else {
-    DOM.bottomBar.classList.remove('selection-mode');
-  }
-}
-DOM.btnCancelSelect.addEventListener('click', () => {
-  state.selectedIds.clear();
-  renderTimeline();
-  updateSelectionBar();
-});
-
-// --- 5. 送信（増殖）と検索（推敲） ---
-DOM.btnSend.addEventListener('click', async () => {
-  const content = DOM.inputContent.value.trim();
-  if (!content) return;
-  
-  const tags = DOM.inputTags.value.trim().split(/\s+/).filter(Boolean);
-  const now = Date.now();
-  const card = {
-    id: now,
-    content: content,
-    memo: "", // スキーマ準拠
-    tags: tags,
-    lastupdated: now
-  };
-  
-  await saveCard(card);
-  
-  // 脅威の推敲ロジック：推敲モード中なら、新作のIDを凍結リストに追加して壁に残す
-  if (state.suikoVisibleIds) {
-    state.suikoVisibleIds.push(card.id);
-  }
-  
-  DOM.inputContent.value = '';
-  DOM.inputTags.value = '';
-  DOM.inputContent.style.height = 'auto';
-  await renderTimeline();
-});
-
-DOM.btnSearch.addEventListener('click', async () => {
-  const keyword = DOM.inputContent.value.trim();
-  if (!keyword) {
-    // 空で検索＝推敲モード解除
-    state.suikoVisibleIds = null;
-    await renderTimeline();
-    return;
-  }
-  
-  // キーワードで海をさらう（本文またはタグに含む）
-  const allCards = await loadAllCards();
-  const hits = allCards.filter(c => 
-    c.content.includes(keyword) || (c.tags && c.tags.some(t => t.includes(keyword)))
-  );
-  
-  // ヒットしたIDを凍結し、推敲モード発動
-  state.suikoVisibleIds = hits.map(c => c.id);
-  await renderTimeline();
-});
-
-// --- 6. 個別編集機能 ---
-function openEditPanel(card) {
-  state.editingCardId = card.id;
-  DOM.editContentView.innerText = card.content; // 閲覧のみ
-  DOM.editMemo.value = card.memo || "";
-  DOM.editTags.value = card.tags ? card.tags.join(' ') : "";
-  DOM.panelEdit.classList.add('active');
-}
-DOM.btnCloseEdit.addEventListener('click', () => DOM.panelEdit.classList.remove('active'));
-
-// タグ入力補助
-document.querySelectorAll('.helper-tag').forEach(btn => {
-  btn.addEventListener('click', (e) => {
-    const tag = e.target.innerText;
-    DOM.editTags.value = (DOM.editTags.value + ' ' + tag).trim();
-  });
-});
-
-DOM.btnSaveEdit.addEventListener('click', async () => {
-  const id = state.editingCardId;
-  const allCards = await loadAllCards();
-  const card = allCards.find(c => c.id === id);
-  if (card) {
-    card.memo = DOM.editMemo.value;
-    card.tags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean);
-    card.lastupdated = Date.now(); // 更新日時のみ上書き
-    await saveCard(card);
-    await renderTimeline();
-  }
-  DOM.panelEdit.classList.remove('active');
-});
-
-// --- 起動処理 ---
-window.addEventListener('DOMContentLoaded', async () => {
-  await initDB();
-  await renderTimeline();
-});
-
-</script>
 </body>
 </html>
