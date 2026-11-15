@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <title>さいきよ2</title>
+<!-- 完全浄化された外部CSSを読み込む -->
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <!-- ヘッダー（天井） -->
   <header>
     <div class="header-left">
       <button id="btn-config">≡</button>
@@ -17,13 +19,17 @@
     <button id="btn-top">さいきよ</button>
   </header>
 
+  <!-- メイン空間（海） -->
   <main id="timeline"></main>
 
+  <!-- 透過ボトムバー（フッター） -->
   <div id="footer-bar">
+    <!-- 通常モード -->
     <div id="footer-normal">
       <span class="footer-title">さいきよ2</span>
       <button id="btn-fab">＋</button>
     </div>
+    <!-- 選択モード -->
     <div id="footer-selection" style="display: none;">
       <span id="selection-count">0件選択中</span>
       <div class="footer-right">
@@ -33,7 +39,7 @@
     </div>
   </div>
 
-  <!-- 最強の2段構えコンソール -->
+  <!-- せり上がるコンソール（最強の2段構え） -->
   <div id="console-area">
     <textarea id="input-content" placeholder="本文を入力..."></textarea>
     <div class="console-bottom">
@@ -43,16 +49,19 @@
     </div>
   </div>
 
+  <!-- 個別編集パネル -->
   <div id="panel-edit" class="panel">
     <div class="panel-header">
       <h2>メタデータ編集</h2>
       <button id="btn-close-edit">✕</button>
     </div>
-    <div class="edit-readonly" id="edit-content-view" style="margin-bottom:15px; padding:10px; background:#f0f0f0; border-radius:4px; font-size:1.1rem; white-space:pre-wrap;"></div>
+    <div class="edit-readonly" id="edit-content-view" style="margin-bottom:15px; padding:10px; background:#f0f0f0; font-size:1.1rem; white-space:pre-wrap;"></div>
+    
     <div class="edit-group">
       <label>メタメモ</label>
       <textarea id="edit-memo" placeholder="裏書き..."></textarea>
     </div>
+    
     <div class="edit-group">
       <label>タグ</label>
       <textarea id="edit-tags" placeholder="タグ..."></textarea>
@@ -64,10 +73,12 @@
         <button class="helper-tag">#既発表</button>
       </div>
     </div>
-    <button id="btn-save-edit" style="width:100%; padding:15px; background:var(--text-color); color:var(--bg-color); border:none; font-size:1.2rem; border-radius:4px; margin-top:20px;">保存</button>
+    <button id="btn-save-edit" style="width:100%; padding:15px; background:var(--text-color); color:var(--bg-color); border:none; font-size:1.2rem; margin-top:20px;">保存</button>
   </div>
 
 <script>
+/** さいきよ2 - 統合ロジック（UI浄化・排他制御・#自動付与・スキーマ完全準拠） */
+
 const DB_NAME = 'saikiyo2_db';
 const STORE_NAME = 'cards';
 let db;
@@ -127,20 +138,21 @@ const DOM = {
   btnSaveEdit: document.getElementById('btn-save-edit')
 };
 
+// ヘッダーの巻き戻し機能
 DOM.btnTop.addEventListener('click', () => {
   DOM.timeline.scrollTo({ top: DOM.timeline.scrollHeight, behavior: 'smooth' });
 });
 
-// コンソールの開閉制御
+// コンソール展開・格納ロジック（フッター排他制御）
 function openInputConsole() {
-  DOM.footerBar.style.display = 'none'; // ★フッター消去
+  DOM.footerBar.style.display = 'none'; // フッター消滅
   DOM.consoleArea.classList.add('open');
   setTimeout(() => DOM.inputContent.focus(), 100);
-  history.pushState({ state: 'inputMode' }, ''); // 履歴ハック
+  history.pushState({ state: 'inputMode' }, ''); // 戻るボタン用のダミー履歴
 }
 
 function closeInputConsole() {
-  DOM.footerBar.style.display = 'block'; // ★フッター復活
+  DOM.footerBar.style.display = 'block'; // フッター復活
   DOM.consoleArea.classList.remove('open');
   DOM.inputContent.blur();
   DOM.inputTags.blur();
@@ -150,7 +162,7 @@ DOM.btnFab.addEventListener('click', () => {
   openInputConsole();
 });
 
-// ブラウザの戻るボタン（ジェスチャー）でコンソールを閉じる
+// 戻るボタンの監視
 window.addEventListener('popstate', (e) => {
   if (DOM.consoleArea.classList.contains('open')) {
     closeInputConsole();
@@ -158,9 +170,23 @@ window.addEventListener('popstate', (e) => {
 });
 
 DOM.inputContent.addEventListener('input', function() {
-  this.style.height = '60px'; 
+  this.style.height = '60px'; // 高さをリセットしてから再計算（縮小対応）
   this.style.height = this.scrollHeight + 'px';
 });
+
+// ★追加：チェックボックス状態遷移（バグ鎮圧ロジック）
+function handleCheckboxChange(cardId, isChecked) {
+  if (isChecked) {
+    state.selectedIds.add(cardId);
+    // コンソール展開中にチェックされたら、履歴を戻して（popstate発火）強制的にコンソールを閉じる
+    if (DOM.consoleArea.classList.contains('open')) {
+      history.back(); 
+    }
+  } else {
+    state.selectedIds.delete(cardId);
+  }
+  updateSelectionBar();
+}
 
 async function renderTimeline() {
   const allCards = await loadAllCards();
@@ -174,26 +200,27 @@ async function renderTimeline() {
     const div = document.createElement('div');
     div.className = 'card';
     
+    // チェックボックスラッパー（旧仕様復活）
     const checkWrap = document.createElement('div');
     checkWrap.className = 'card-check-wrap';
     const chk = document.createElement('input');
     chk.type = 'checkbox';
-    chk.className = 'card-check';
+    chk.className = 'card-check'; 
     chk.checked = state.selectedIds.has(card.id);
-    chk.addEventListener('change', (e) => {
-      if(e.target.checked) state.selectedIds.add(card.id);
-      else state.selectedIds.delete(card.id);
-      updateSelectionBar();
-    });
+    
+    chk.addEventListener('change', (e) => handleCheckboxChange(card.id, e.target.checked));
     checkWrap.appendChild(chk);
 
+    // 本文とメタデータ
     const body = document.createElement('div');
     body.className = 'card-body';
     const safeContent = card.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const dateStr = new Date(card.id).toLocaleString();
     const tagStr = card.tags && Array.isArray(card.tags) ? card.tags.join(' ') : '';
+    
     body.innerHTML = `<div>${safeContent}</div><div class="card-meta">${dateStr}<br>${tagStr}</div>`;
     
+    // 本文領域タップで編集画面へ
     body.addEventListener('click', () => openEditPanel(card));
 
     div.appendChild(checkWrap);
@@ -222,49 +249,61 @@ DOM.btnCancelSelection.addEventListener('click', () => {
   updateSelectionBar();
 });
 
+// 放流（送信）ボタン：自動「#」付与＆スキーマ完全準拠
 DOM.btnSend.addEventListener('click', async () => {
   const content = DOM.inputContent.value.trim();
   if (!content) return;
   
-  const tags = DOM.inputTags.value.trim().split(/\s+/).filter(Boolean);
+  // 入力された文字列を空白で割り、「#」がなければ頭につける
+  const tags = DOM.inputTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+  
   const now = Date.now();
-  const card = { id: now, content: content, memo: "", tags: tags, lastupdated: now };
+  const card = {
+    id: now, 
+    content: content, 
+    memo: "", // ★完全準拠 
+    tags: tags, 
+    lastupdated: now // ★完全準拠
+  };
   
   await saveCard(card);
+  
   if (state.suikoVisibleIds) state.suikoVisibleIds.push(card.id);
   
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
   DOM.inputContent.style.height = '60px';
   await renderTimeline();
-  
-  // 連続入力を防ぎたければ closeInputConsole(); をここに入れても良い。今は残す。
 });
 
+// 検索ボタン
 DOM.btnSearch.addEventListener('click', async () => {
   const keyword = DOM.inputContent.value.trim();
   if (!keyword) {
     state.suikoVisibleIds = null;
     await renderTimeline();
-    // 検索解除時はコンソールを閉じる
-    if(DOM.consoleArea.classList.contains('open')) {
+    // 空検索で解除した時も、コンソールを閉じて海へ戻す
+    if (DOM.consoleArea.classList.contains('open')) {
       history.back();
     }
     return;
   }
+  
   const allCards = await loadAllCards();
   state.suikoVisibleIds = allCards.filter(c => 
     c.content.includes(keyword) || 
     (c.tags && Array.isArray(c.tags) && c.tags.some(t => t.includes(keyword)))
   ).map(c => c.id);
+  
   await renderTimeline();
   
-  // 検索ヒット時はコンソールを閉じて結果を見せる
-  if(DOM.consoleArea.classList.contains('open')) {
+  // 検索ヒット時にコンソールを閉じる
+  if (DOM.consoleArea.classList.contains('open')) {
     history.back(); 
   }
 });
 
+// 編集パネル開閉
 function openEditPanel(card) {
   state.editingCardId = card.id;
   DOM.editContentView.innerText = card.content;
@@ -281,13 +320,15 @@ document.querySelectorAll('.helper-tag').forEach(btn => {
   });
 });
 
+// 編集保存ボタン：自動「#」付与＆lastupdated更新
 DOM.btnSaveEdit.addEventListener('click', async () => {
   const id = state.editingCardId;
   const allCards = await loadAllCards();
   const card = allCards.find(c => c.id === id);
   if (card) {
     card.memo = DOM.editMemo.value;
-    card.tags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean);
+    // タグ修正時も自動で「#」を付与
+    card.tags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
     card.lastupdated = Date.now();
     await saveCard(card);
     await renderTimeline();
@@ -295,8 +336,9 @@ DOM.btnSaveEdit.addEventListener('click', async () => {
   DOM.panelEdit.classList.remove('active');
 });
 
+// 机への射出（URLパラメータ）
 DOM.btnToDesk.addEventListener('click', () => {
-  if(state.selectedIds.size === 0) return;
+  if (state.selectedIds.size === 0) return;
   const ids = Array.from(state.selectedIds).join(',');
   window.location.href = `rensaku.html?ids=${ids}`;
 });

@@ -42,33 +42,57 @@ header button {
   padding-bottom: 120px;
   overscroll-behavior-y: none;
 }
+
+/* カードのデザイン（枠線・角丸の全廃） */
 .card {
   position: relative;
-  background: #FFF; border: 1px solid #CCC;
-  margin-bottom: 15px; border-radius: 4px;
-  box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+  background: transparent; /* 背景を海と同化 */
+  border: none; /* 枠線を根絶 */
+  margin-bottom: 25px; /* 余白で区切る */
+  border-radius: 0; /* 角丸の根絶 */
   display: flex;
 }
+
+/* --- 旧さいきよ風・カスタムチェックボックス --- */
 .card-check-wrap {
-  padding: 15px 10px;
+  padding: 15px 5px 15px 0; /* 本文のすぐ左に詰める */
   display: flex; align-items: flex-start;
 }
 .card-check {
-  transform: scale(1.5);
-  margin-top: 5px;
+  appearance: none; -webkit-appearance: none;
+  width: 20px; height: 20px;
+  margin: 0; margin-top: 4px; /* 本文の1行目に高さを合わせる */
+  cursor: pointer;
+  position: relative;
+  outline: none;
 }
+/* 未選択（□） */
+.card-check::before {
+  content: "□";
+  position: absolute; top: 0; left: 0;
+  font-size: 1.3rem; color: var(--text-color);
+  line-height: 1;
+}
+/* 選択時（☑） */
+.card-check:checked::before {
+  content: "☑";
+}
+
 .card-body {
   flex: 1;
-  padding: 15px 15px 15px 5px;
+  padding: 15px 5px; /* 枠がないのでパディングもスッキリさせる */
   cursor: pointer;
   font-size: var(--font-size);
   line-height: var(--line-height);
   white-space: pre-wrap; word-break: break-all;
 }
+
+/* メタデータも枠線を廃し、余白と色味だけで区別 */
 .card-meta {
   font-size: 0.8rem; color: #666;
-  margin-top: 10px; border-top: 1px dashed #CCC;
-  padding-top: 5px; line-height: 1.4;
+  margin-top: 5px; 
+  border: none; /* ダサい破線を根絶 */
+  line-height: 1.4;
 }
 
 /* --- 透過ボトムバー（フッター） --- */
@@ -93,19 +117,21 @@ header button {
 .footer-title { font-weight: bold; font-size: 1.2rem; cursor: pointer; }
 #footer-selection button {
   font-size: 1rem; padding: 5px 10px;
-  background: var(--text-color); color: var(--bg-color); border-radius: 4px;
+  background: var(--text-color); color: var(--bg-color); border-radius: 0; /* 角丸根絶 */
+  border: 1px solid var(--text-color);
 }
-#btn-cancel-selection { background: #999 !important; }
+#btn-cancel-selection { background: var(--bg-color) !important; color: var(--text-color) !important; }
 
-/* --- せり上がるコンソール（最強の2段構え・枠線ゼロ） --- */
+/* --- せり上がるコンソール（角丸・枠線ゼロのソリッド版） --- */
 #console-area {
   position: fixed;
-  bottom: 0; /* フッターが消えるため一番下に接合 */
+  bottom: 0;
   left: 0; right: 0;
   background: var(--console-bg);
   backdrop-filter: blur(10px);
-  padding: 10px 10px 20px 10px; /* 枠線を消し、うっすら影を落とす */
+  padding: 10px 10px 20px 10px;
   box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+  border-top: 1px solid var(--text-color); /* 海との境界線だけピシッと引く */
   z-index: 150;
   transform: translateY(120%);
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -115,37 +141,37 @@ header button {
   transform: translateY(0);
 }
 
-/* 上段：横幅いっぱいの本文（上に伸びる） */
 #input-content {
   width: 100%;
   min-height: 60px; max-height: 35vh; 
   padding: 10px 5px; box-sizing: border-box;
   font-size: 1.1rem; font-family: inherit;
-  background: transparent; /* 背景と一体化 */
-  border: none; outline: none; /* 枠線を完全消去 */
+  background: transparent;
+  border: none; outline: none;
   resize: none; overflow-y: auto;
 }
 #input-content::placeholder { color: #999; }
 
-/* 下段：検索、タグ、送信 */
 .console-bottom {
   display: flex; gap: 5px; height: 54px;
 }
 .console-btn {
   width: 70px; height: 100%; flex-shrink: 0;
   font-weight: bold; font-size: 1rem;
-  border-radius: 20px; /* Gemini風の角丸 */
+  border-radius: 0; /* 角丸根絶 */
   cursor: pointer; line-height: 1.2;
 }
-#btn-search { background: var(--header-bg); color: var(--text-color); border: none; }
-#btn-send { background: var(--text-color); color: var(--bg-color); border: none; }
+#btn-search { background: var(--header-bg); color: var(--text-color); border: 1px solid var(--text-color); }
+#btn-send { background: var(--text-color); color: var(--bg-color); border: 1px solid var(--text-color); }
 
 #input-tags {
   flex: 1; height: 100%;
   padding: 15px 15px 0 15px; box-sizing: border-box;
   font-size: 1rem; font-family: inherit;
-  background: var(--header-bg); /* タグ欄は少し色を付けて領域を示す */
-  border: none; outline: none; border-radius: 20px;
+  background: var(--header-bg);
+  border: 1px solid var(--text-color); /* ソリッドな境界 */
+  border-radius: 0; /* 角丸根絶 */
+  outline: none;
   resize: none; white-space: nowrap; overflow: hidden;
 }
 
@@ -163,10 +189,10 @@ header button {
 .edit-group label { font-weight: bold; font-size: 0.9rem; }
 .edit-group textarea {
   width: 100%; padding: 10px; font-size: 1rem; font-family: inherit;
-  border: 1px solid var(--text-color); border-radius: 4px; box-sizing: border-box; resize: vertical;
+  border: 1px solid var(--text-color); border-radius: 0; box-sizing: border-box; resize: vertical;
 }
 .tag-helpers { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .helper-tag {
-  background: var(--header-bg); border: 1px solid #CCC; border-radius: 20px;
+  background: var(--header-bg); border: 1px solid var(--text-color); border-radius: 0;
   padding: 5px 12px; font-size: 0.9rem; cursor: pointer;
 }
