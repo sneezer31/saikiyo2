@@ -3,8 +3,12 @@
   --text-color: #1A1A1A;
   --header-bg: #EAE6DF;
   --console-bg: rgba(253, 251, 246, 0.98);
-  --font-size: 18px; 
-  --line-height: 1.8;
+  
+  /* タイポグラフィ・ポートフォリオ（完璧なメリハリ） */
+  --font-small: 0.75rem;
+  --font-base: 1.0rem;
+  --font-large: 1.25rem;
+  --line-height: 1.3; /* 150%固定 */
 }
 
 body {
@@ -18,7 +22,6 @@ body {
   flex-direction: column;
 }
 
-/* --- ヘッダー（天井） --- */
 header {
   flex-shrink: 0;
   display: flex; justify-content: space-between; align-items: center;
@@ -30,69 +33,78 @@ header {
 .header-left { display: flex; gap: 15px; }
 header button {
   background: none; border: none; color: var(--text-color);
-  font-size: 1.4rem; cursor: pointer; padding: 0;
+  font-size: var(--font-base); cursor: pointer; padding: 0;
 }
-#btn-top { font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+#btn-top { font-weight: bold; font-size: var(--font-base); cursor: pointer; }
 
-/* --- メイン空間（海） --- */
 #timeline {
   flex: 1;
   overflow-y: auto;
   padding: 15px;
-  padding-bottom: 120px;
   overscroll-behavior-y: none;
 }
 
-/* カードのデザイン（枠線・角丸の全廃） */
+/* --- カードデザイン（美しく整理） --- */
 .card {
   position: relative;
-  background: transparent; /* 背景を海と同化 */
-  border: none; /* 枠線を根絶 */
-  margin-bottom: 25px; /* 余白で区切る */
-  border-radius: 0; /* 角丸の根絶 */
+  background: transparent;
+  border: none;
+  margin-bottom: 15px; 
+  border-radius: 0;
   display: flex;
+  flex-direction: column; 
 }
 
-/* --- 旧さいきよ風・カスタムチェックボックス --- */
-.card-check-wrap {
-  padding: 15px 5px 15px 0; /* 本文のすぐ左に詰める */
-  display: flex; align-items: flex-start;
+/* 上段：メタデータとチェックボックス */
+.card-meta-wrap {
+  display: flex;
+  align-items: center; 
+  padding: 0 5px 3px 5px;
 }
+.card-check-wrap {
+  margin-right: 8px; 
+  display: flex; align-items: center;
+}
+/* チェックボックスの箱本体 */
 .card-check {
   appearance: none; -webkit-appearance: none;
-  width: 20px; height: 20px;
-  margin: 0; margin-top: 4px; /* 本文の1行目に高さを合わせる */
+  width: 20px;   /* 16pxから20pxへ拡大 */
+  height: 20px;  /* 16pxから20pxへ拡大 */
+  margin: 0; 
   cursor: pointer;
-  position: relative;
   outline: none;
+  /* ↓ position: relative; を捨ててFlexboxの魔法に入れ替える */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-/* 未選択（□） */
+
+/* 中身の「□」「☑」 */
 .card-check::before {
   content: "□";
-  position: absolute; top: 0; left: 0;
-  font-size: 1.3rem; color: var(--text-color);
+  /* ↓ absoluteのピン留めを完全撤廃 */
+  font-size: 1.1rem; /* 箱の拡大に合わせてフォントサイズも引き上げ */
+  color: var(--text-color);
   line-height: 1;
 }
-/* 選択時（☑） */
+
 .card-check:checked::before {
   content: "☑";
 }
 
-.card-body {
-  flex: 1;
-  padding: 15px 5px; /* 枠がないのでパディングもスッキリさせる */
-  cursor: pointer;
-  font-size: var(--font-size);
-  line-height: var(--line-height);
-  white-space: pre-wrap; word-break: break-all;
+.card-meta-info {
+  font-size: var(--font-small); 
+  color: #666;
+  line-height: 1;
 }
 
-/* メタデータも枠線を廃し、余白と色味だけで区別 */
-.card-meta {
-  font-size: 0.8rem; color: #666;
-  margin-top: 5px; 
-  border: none; /* ダサい破線を根絶 */
-  line-height: 1.4;
+/* 下段：本文 */
+.card-body {
+  padding: 0 5px; 
+  cursor: pointer;
+  font-size: var(--font-base);
+  line-height: var(--line-height);
+  white-space: pre-wrap; word-break: break-all;
 }
 
 /* --- 透過ボトムバー（フッター） --- */
@@ -106,32 +118,30 @@ header button {
 }
 #footer-normal, #footer-selection {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 15px;
-  height: 40px;
+  padding: 8px 15px;
 }
 .footer-right { display: flex; gap: 15px; align-items: center; }
 #footer-bar button {
   background: none; border: none; color: var(--text-color);
-  font-size: 1.4rem; cursor: pointer; padding: 0; font-weight: bold;
+  font-size: var(--font-base); cursor: pointer; padding: 0; font-weight: bold;
 }
-.footer-title { font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+.footer-title { font-weight: bold; font-size: var(--font-base); cursor: pointer; }
 #footer-selection button {
-  font-size: 1rem; padding: 5px 10px;
-  background: var(--text-color); color: var(--bg-color); border-radius: 0; /* 角丸根絶 */
+  font-size: var(--font-base); padding: 6px 12px;
+  background: var(--text-color); color: var(--bg-color); border-radius: 0;
   border: 1px solid var(--text-color);
 }
 #btn-cancel-selection { background: var(--bg-color) !important; color: var(--text-color) !important; }
 
-/* --- せり上がるコンソール（角丸・枠線ゼロのソリッド版） --- */
+/* --- せり上がるコンソール --- */
 #console-area {
   position: fixed;
-  bottom: 0;
-  left: 0; right: 0;
+  bottom: 0; left: 0; right: 0;
   background: var(--console-bg);
   backdrop-filter: blur(10px);
   padding: 10px 10px 20px 10px;
   box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
-  border-top: 1px solid var(--text-color); /* 海との境界線だけピシッと引く */
+  border-top: 1px solid var(--text-color);
   z-index: 150;
   transform: translateY(120%);
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -141,38 +151,54 @@ header button {
   transform: translateY(0);
 }
 
+/* 本文入力窓（新CSS兵器による1行圧縮ハック） */
 #input-content {
   width: 100%;
-  min-height: 60px; max-height: 35vh; 
-  padding: 10px 5px; box-sizing: border-box;
-  font-size: 1.1rem; font-family: inherit;
+  min-height: 34px; /* 1行の適正価格 */
+  max-height: 35vh; 
+  padding: 5px 10px; /* パディングを削ぎ落として密着 */
+  box-sizing: border-box;
+  font-size: var(--font-base); 
+  line-height: var(--line-height);
+  font-family: inherit;
   background: transparent;
   border: none; outline: none;
   resize: none; overflow-y: auto;
+  field-sizing: content; /* JSを不要にする魔法のプロパティ */
 }
 #input-content::placeholder { color: #999; }
 
+/* --- コンソール下部（45pxの黄金算数） --- */
 .console-bottom {
-  display: flex; gap: 5px; height: 54px;
+  display: flex; gap: 5px; 
+  align-items: center; 
 }
-.console-btn {
-  width: 70px; height: 100%; flex-shrink: 0;
-  font-weight: bold; font-size: 1rem;
-  border-radius: 0; /* 角丸根絶 */
-  cursor: pointer; line-height: 1.2;
+.console-btn-icon {
+  width: 45px; 
+  height: 45px; 
+  flex-shrink: 0;
+  padding: 0; 
+  font-weight: bold; font-size: var(--font-large);
+  border-radius: 0;
+  cursor: pointer; 
+  box-sizing: border-box; 
+  display: flex; align-items: center; justify-content: center;
 }
 #btn-search { background: var(--header-bg); color: var(--text-color); border: 1px solid var(--text-color); }
 #btn-send { background: var(--text-color); color: var(--bg-color); border: 1px solid var(--text-color); }
 
 #input-tags {
-  flex: 1; height: 100%;
-  padding: 15px 15px 0 15px; box-sizing: border-box;
-  font-size: 1rem; font-family: inherit;
+  flex: 1;
+  height: 45px;
+  padding: 10px 10px;
+  box-sizing: border-box;
+  line-height: 1.2;
+  font-size: 0.85rem;
+  font-family: inherit;
   background: var(--header-bg);
-  border: 1px solid var(--text-color); /* ソリッドな境界 */
-  border-radius: 0; /* 角丸根絶 */
-  outline: none;
-  resize: none; white-space: nowrap; overflow: hidden;
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  outline: none; resize: none; overflow: hidden;
 }
 
 /* --- パネル --- */
@@ -183,16 +209,21 @@ header button {
 }
 .panel.active { display: block; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--text-color); margin-bottom: 20px; padding-bottom: 10px; }
-.panel-header h2 { margin: 0; font-size: 1.4rem; }
-.panel-header button { background: none; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: var(--text-color); }
+.panel-header h2 { margin: 0; font-size: var(--font-base); }
+.panel-header button { background: none; border: none; font-size: var(--font-base); font-weight: bold; cursor: pointer; color: var(--text-color); }
+#edit-content-view { background: transparent !important; border: 1px solid var(--text-color) !important; font-size: var(--font-base) !important; }
 .edit-group { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
-.edit-group label { font-weight: bold; font-size: 0.9rem; }
+.edit-group label { font-weight: bold; font-size: var(--font-base); }
 .edit-group textarea {
-  width: 100%; padding: 10px; font-size: 1rem; font-family: inherit;
-  border: 1px solid var(--text-color); border-radius: 0; box-sizing: border-box; resize: vertical;
+  width: 100%; padding: 10px; font-size: var(--font-base); font-family: inherit;
+  border: 1px solid var(--text-color); border-radius: 0; box-sizing: border-box; resize: vertical; min-height: 80px; 
 }
 .tag-helpers { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
 .helper-tag {
   background: var(--header-bg); border: 1px solid var(--text-color); border-radius: 0;
-  padding: 5px 12px; font-size: 0.9rem; cursor: pointer;
+  padding: 5px 12px; font-size: var(--font-base); cursor: pointer;
+}
+#btn-save-edit {
+  width: 100%; padding: 10px; background: var(--text-color); color: var(--bg-color); 
+  border: none; font-size: var(--font-large); margin-top: 20px; 
 }
