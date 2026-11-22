@@ -3,199 +3,219 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
-<title>さいきよ‐れんさく</title>
+<title>さいきよ2 - 工房</title>
 <style>
-  :root { --bg-color: #F8F8F8; --text-color: #111111; --primary: #2C7C73; --btn-bg: #FFFFFF; }
-  
-  /* 引っ張って更新（Pull-to-Refresh）の根絶 */
-  html, body { 
+  :root {
+    --bg-color: #FDFBF6;
+    --text-color: #1A1A1A;
+    --header-bg: #EAE6DF;
+    --primary: #2C7C73;
+    --btn-bg: #FFFFFF;
+  }
+
+  html, body {
     margin: 0; padding: 0; height: 100dvh; overflow: hidden;
     font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color);
-    overscroll-behavior: none; 
+    overscroll-behavior: none;
   }
-  
+
   #app-container {
     display: flex; flex-direction: column; height: 100%; max-width: 800px; margin: 0 auto;
   }
 
-  .screen { display: none; padding: 20px; flex-direction: column; gap: 15px; flex: 1; box-sizing: border-box; overflow: hidden; }
+  .screen {
+    display: none; padding: 15px; flex-direction: column; gap: 12px; flex: 1;
+    box-sizing: border-box; overflow: hidden;
+  }
   .screen.active { display: flex; }
 
-  h2 { margin: 0 0 10px 0; font-size: 1.6rem; border-bottom: 2px solid var(--primary); padding-bottom: 5px; text-align: center; flex-shrink: 0; }
-  .sub-title { margin: 0; font-size: 1.1rem; font-weight: bold; flex-shrink: 0; }
-
-  /* フォーム要素 */
-  textarea { width: 100%; padding: 12px; font-size: 16px; box-sizing: border-box; border: 1px solid #999; border-radius: 4px; resize: none; flex: 1; }
-  
-  /* プレビューエリア */
-  #preview-area { font-size: 1.1rem; line-height: 2; padding: 10px; white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; flex: 1; }
-
-  .settings-group { border: 1px solid #CCC; padding: 15px; border-radius: 4px; background: #FFF; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
-  .radio-row { display: flex; gap: 15px; align-items: center; font-size: 0.95rem; }
-  .radio-label { font-weight: bold; width: 80px; flex-shrink: 0; }
-
-  /* ボタン */
-  .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-shrink: 0; }
-  button { padding: 14px; font-size: 1.1rem; font-weight: bold; background: var(--btn-bg); color: var(--text-color); border: 2px solid var(--text-color); cursor: pointer; border-radius: 4px; flex: 1; }
-  button.primary { background: var(--primary); color: #FFF; border-color: var(--primary); }
-  button:active { opacity: 0.7; }
-
-  /* ソートエリアのラッパー */
-  .sort-wrapper {
-    position: relative; flex: 1; overflow: hidden; border: 1px inset #CCC; border-radius: 8px; background: #EAEAEA;
+  /* 上部ツールバー（3トグル） */
+  .toolbar {
+    display: flex; gap: 8px; flex-shrink: 0;
   }
+  .toggle-btn {
+    flex: 1; padding: 10px 6px; font-size: 0.9rem; font-weight: bold;
+    background: var(--header-bg); color: var(--text-color);
+    border: 1px solid var(--text-color); border-radius: 0; cursor: pointer;
+    text-align: center;
+  }
+  .toggle-btn:active { opacity: 0.7; }
 
-  /* 実際のソートエリア */
+  /* ソートエリア */
+  .sort-wrapper {
+    position: relative; flex: 1; overflow: hidden;
+    border: 1px solid #CCC; background: #EAE6DF;
+  }
   #sort-area {
-    display: flex; gap: 10px; padding: 15px; box-sizing: border-box;
+    display: flex; gap: 10px; padding: 12px; box-sizing: border-box;
     width: 100%; height: 100%;
     scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none;
-    overflow-anchor: none; /* ブラウザのスクロール補正暴走を強制停止 */
+    overflow-anchor: none;
   }
   #sort-area::-webkit-scrollbar { display: none; }
-  
-  /* 自前スクロールバー */
+
   #custom-scrollbar {
     position: absolute; pointer-events: none; z-index: 100; display: none;
   }
   #custom-thumb {
-    background-color: var(--primary); border-radius: 4px; position: absolute; border: 1px solid rgba(255,255,255,0.5); box-sizing: border-box;
+    background-color: var(--primary); border-radius: 4px; position: absolute;
+    border: 1px solid rgba(255,255,255,0.5); box-sizing: border-box;
   }
 
-  /* 短冊の基本スタイル */
+  /* 短冊 */
   .tanzaku {
-    background-color: #FFF; border: 1px solid #666; border-radius: 2px; box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    background-color: #FFF; border: 1px solid #666;
     padding: 10px; user-select: none; -webkit-user-select: none;
-    touch-action: manipulation;
-    transition: none !important;
+    touch-action: manipulation; transition: none !important;
     display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
     box-sizing: border-box;
   }
-  
-  /* 抜け殻（プレースホルダー） */
   .placeholder {
-    background-color: rgba(0,0,0,0.05); border: 1px dashed #999; border-radius: 2px; box-shadow: none;
+    background-color: rgba(0,0,0,0.06); border: 1px dashed #999;
     box-sizing: border-box;
   }
-
-  /* ドラッグ中の実体 */
   .dragging {
-    position: fixed; pointer-events: none; opacity: 1; transform: none; box-shadow: none; z-index: 1000;
+    position: fixed; pointer-events: none; opacity: 1; transform: none; z-index: 1000;
     border: 2px solid var(--primary); background: #FFF;
   }
-
-  /* 番号（連番） */
   .item-num {
-    font-weight: bold; color: #999; font-size: 14px; flex-shrink: 0;
+    font-weight: bold; color: #888; font-size: 14px; flex-shrink: 0;
     pointer-events: none; padding-top: 2px;
   }
   .dir-vertical .item-num { padding-top: 0; padding-right: 2px; }
 
-  /* ドラッグ専用ハンドル */
   .drag-handle {
-    cursor: grab; font-size: 1.4rem; color: #999; line-height: 1; flex-shrink: 0; 
-    padding: 8px 12px; background-color: rgba(0,0,0,0.05); border-radius: 4px;
+    cursor: grab; font-size: 1.3rem; color: #666; line-height: 1; flex-shrink: 0;
+    padding: 8px 12px; background-color: rgba(0,0,0,0.05);
     display: flex; align-items: center; justify-content: center;
     touch-action: none;
   }
-  .drag-handle:active { color: var(--primary); background-color: rgba(0,0,0,0.1); }
-  
-  /* 短歌テキスト部分 */
-  .tanzaku-text { 
-    flex: 1; 
-    min-width: 0; 
-    min-height: 0; 
+  .drag-handle:active { color: var(--primary); background-color: rgba(0,0,0,0.12); }
+
+  .tanzaku-text { flex: 1; min-width: 0; min-height: 0; }
+  .tanzaku.font-mincho, #preview-area.font-mincho { font-family: 'Shippori Mincho', serif; }
+  .tanzaku.font-gothic, #preview-area.font-gothic { font-family: sans-serif; }
+
+  #sort-area.dir-vertical {
+    flex-direction: row-reverse; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; justify-content: flex-start;
+  }
+  #sort-area.dir-horizontal {
+    flex-direction: column; flex-wrap: nowrap; overflow-y: auto; overflow-x: hidden;
   }
 
-  /* 書体 */
-  .tanzaku.font-mincho { font-family: 'Shippori Mincho', serif; }
-  .tanzaku.font-gothic { font-family: sans-serif; }
-  
-  /* 親コンテナのレイアウト方向 */
-  #sort-area.dir-vertical { flex-direction: row-reverse; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; justify-content: flex-start; }
-  #sort-area.dir-horizontal { flex-direction: column; flex-wrap: nowrap; overflow-y: auto; overflow-x: hidden; }
+  .tanzaku.dir-vertical, .placeholder.dir-vertical {
+    writing-mode: vertical-rl; padding: 15px 10px; line-height: 2; flex-shrink: 0;
+  }
+  .tanzaku.dir-horizontal, .placeholder.dir-horizontal {
+    writing-mode: horizontal-tb; width: 100%; line-height: 1.5; flex-shrink: 0;
+  }
 
-  /* 短冊自身のテキスト方向 */
-  .tanzaku.dir-vertical, .placeholder.dir-vertical { writing-mode: vertical-rl; padding: 15px 10px; line-height: 2; flex-shrink: 0; }
-  .tanzaku.dir-horizontal, .placeholder.dir-horizontal { writing-mode: horizontal-tb; width: 100%; line-height: 1.5; flex-shrink: 0; }
-
-  /* 折り返し設定 */
   .tanzaku.wrap-false .tanzaku-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tanzaku.wrap-true .tanzaku-text { white-space: pre-wrap; word-break: break-all; }
+
+  /* 仕上げ画面 */
+  #preview-area {
+    font-size: 1.0rem; line-height: 1.7; padding: 12px;
+    background: #FFF; border: 1px solid var(--text-color);
+    white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; flex: 1;
+  }
+  .meta-form {
+    display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+  }
+  .meta-form input, .meta-form textarea {
+    width: 100%; padding: 8px 10px; font-size: 0.95rem; font-family: inherit;
+    background: #FFF; color: var(--text-color);
+    border: 1px solid var(--text-color); border-radius: 0; box-sizing: border-box;
+  }
+  .meta-form textarea { resize: none; }
+
+  /* 下部ボタン群 */
+  .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
+  .action-btn {
+    height: 48px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
+    background: var(--bg-color); color: var(--text-color);
+    border: 1px solid var(--text-color); border-radius: 0; cursor: pointer; flex: 1;
+    white-space: nowrap;
+  }
+  .action-btn.secondary { background: var(--header-bg); }
+  .action-btn.primary { background: var(--text-color); color: var(--bg-color); }
+  .action-btn:active { opacity: 0.7; }
+
+  .empty-notice {
+    padding: 20px; text-align: center; color: #666; font-size: 0.95rem; margin: auto;
+  }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet">
 </head>
 <body>
 
 <div id="app-container">
-  <div id="screen1" class="screen active">
-    <h2>さいきよ‐れんさく</h2>
-    
-    <div class="settings-group">
-      <div class="radio-row">
-        <span class="radio-label">書体</span>
-        <label><input type="radio" name="font" value="gothic" checked> ゴシック</label>
-        <label><input type="radio" name="font" value="mincho"> 明朝</label>
-      </div>
-      <div class="radio-row">
-        <span class="radio-label">方向</span>
-        <label><input type="radio" name="direction" value="horizontal" checked> 横書き</label>
-        <label><input type="radio" name="direction" value="vertical"> 縦書き</label>
-      </div>
-      <div class="radio-row">
-        <span class="radio-label">表示</span>
-        <label><input type="radio" name="wrap" value="false" checked>折り返しなし</label>
-        <label><input type="radio" name="wrap" value="true"> 全文</label>
-      </div>
+  <!-- 画面1：並べ替え机 -->
+  <div id="screen-sort" class="screen active">
+    <div class="toolbar">
+      <button type="button" id="toggle-font" class="toggle-btn">ゴシック</button>
+      <button type="button" id="toggle-dir" class="toggle-btn">横書き</button>
+      <button type="button" id="toggle-wrap" class="toggle-btn">1行表示</button>
     </div>
 
-    <textarea id="input-text" placeholder="ここに連作を入力してください。&#10;（1首ごとに1行の空行を入れてください）"></textarea>
-    
-    <div class="btn-group">
-      <button type="button" class="primary" onclick="goToScreen2()">次へ</button>
-    </div>
-  </div>
-
-  <div id="screen2" class="screen">
-    <h2>さいきよ‐れんさく</h2>
-    <div class="sub-title">並べ替え（右端の「☰」を掴んで移動）</div>
     <div class="sort-wrapper">
       <div id="sort-area"></div>
       <div id="custom-scrollbar"><div id="custom-thumb"></div></div>
     </div>
-    
+
     <div class="btn-group">
-      <button type="button" onclick="goToScreen(1)">戻る</button>
-      <button type="button" class="primary" onclick="goToScreen3()">次へ</button>
+      <button type="button" id="btn-back-tl" class="action-btn">TLへ戻る</button>
+      <button type="button" id="btn-to-finish" class="action-btn primary">次へ</button>
     </div>
   </div>
 
-  <div id="screen3" class="screen">
-    <h2>さいきよ‐れんさく</h2>
-    <div class="sub-title">出力結果</div>
-    
+  <!-- 画面2：仕上げ（プレビュー・メタデータ入力・出力） -->
+  <div id="screen-finish" class="screen">
     <div id="preview-area"></div>
-    
+
+    <div class="meta-form">
+      <input type="text" id="shelf-title" placeholder="リスト名（空欄なら1首目の冒頭5文字）">
+      <textarea id="shelf-memo" rows="2" placeholder="メモ（任意）"></textarea>
+      <input type="text" id="shelf-tags" placeholder="タグ（例: #連作 #提出用）">
+    </div>
+
     <div class="btn-group">
-      <button type="button" onclick="goToScreen(2)">戻る</button>
-      <button type="button" class="primary" onclick="copyToClipboard()">決定（コピー）</button>
+      <button type="button" id="btn-back-sort" class="action-btn">戻る</button>
+      <button type="button" id="btn-copy" class="action-btn secondary">コピー</button>
+      <button type="button" id="btn-save-shelf" class="action-btn primary">棚に収める</button>
     </div>
   </div>
 </div>
 
-<script>
-  const screens = [
-    document.getElementById('screen1'),
-    document.getElementById('screen2'),
-    document.getElementById('screen3')
-  ];
-  const inputText = document.getElementById('input-text');
+<script type="module">
+  import { initDB, getCard, saveShelf } from './db.js';
+
+  const PREFS_KEY = 'saikiyo2_rensaku_prefs';
+  let prefs = { font: 'gothic', direction: 'horizontal', wrap: 'false' };
+
+  const screenSort = document.getElementById('screen-sort');
+  const screenFinish = document.getElementById('screen-finish');
   const sortArea = document.getElementById('sort-area');
   const previewArea = document.getElementById('preview-area');
-  
-  let finalResultText = "";
-  let currentDirection = 'horizontal';
 
+  const btnToggleFont = document.getElementById('toggle-font');
+  const btnToggleDir = document.getElementById('toggle-dir');
+  const btnToggleWrap = document.getElementById('toggle-wrap');
+
+  const btnBackTl = document.getElementById('btn-back-tl');
+  const btnToFinish = document.getElementById('btn-to-finish');
+  const btnBackSort = document.getElementById('btn-back-sort');
+  const btnCopy = document.getElementById('btn-copy');
+  const btnSaveShelf = document.getElementById('btn-save-shelf');
+
+  const inputTitle = document.getElementById('shelf-title');
+  const inputMemo = document.getElementById('shelf-memo');
+  const inputTags = document.getElementById('shelf-tags');
+
+  let finalResultText = '';
+  let orderedCards = [];
+
+  // ドラッグ状態
   let deskDraggedItem = null;
   let deskPlaceholder = null;
   let deskPointerOffsetX = 0;
@@ -207,112 +227,175 @@
   let deskOriginalRectTop = 0;
   let deskIsDragging = false;
   let lastMoveTime = 0;
-
   let deskLastClientX = 0;
   let deskLastClientY = 0;
   let autoScrollSpeedX = 0;
   let autoScrollSpeedY = 0;
   let autoScrollRAF = null;
 
-  // --- さいきよ2（IndexedDB）連携：?ids= を受け取り並べ替え画面へ直行 ---
-  function loadCardsFromSaikiyo2(ids) {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open('saikiyo2_db', 1);
-      request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains('cards')) {
-          db.createObjectStore('cards', { keyPath: 'id' });
-        }
-      };
-      request.onsuccess = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains('cards')) {
-          resolve([]);
-          return;
-        }
-        const tx = db.transaction('cards', 'readonly');
-        const store = tx.objectStore('cards');
-        const results = new Array(ids.length);
-        let remaining = ids.length;
-
-        ids.forEach((id, index) => {
-          const req = store.get(id);
-          req.onsuccess = () => {
-            results[index] = req.result || null;
-            remaining--;
-            if (remaining === 0) resolve(results.filter(Boolean));
-          };
-          req.onerror = () => {
-            results[index] = null;
-            remaining--;
-            if (remaining === 0) resolve(results.filter(Boolean));
-          };
-        });
-      };
-      request.onerror = (e) => reject(e);
-    });
+  // --- 設定の読み込み・保存・即時反映 ---
+  function loadPrefs() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PREFS_KEY));
+      if (saved) prefs = { ...prefs, ...saved };
+    } catch (_) {}
+    updateToggleLabels();
   }
 
-  window.addEventListener('DOMContentLoaded', async () => {
-    const params = new URLSearchParams(window.location.search);
-    const idsParam = params.get('ids');
-    if (!idsParam) return;
-
-    const ids = idsParam.split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n));
-    if (ids.length === 0) return;
-
+  function savePrefs() {
     try {
-      const cards = await loadCardsFromSaikiyo2(ids);
-      if (cards.length > 0) {
-        inputText.value = cards.map(c => c.content).join('\n\n');
-        goToScreen2();
-      }
-    } catch (err) {
-      console.error('さいきよ2 DB読み込みエラー:', err);
-    }
-  });
-  // ----------------------------------------------------------------------
+      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    } catch (_) {}
+  }
 
-  function goToScreen(screenNumber) {
-    screens.forEach((screen, index) => {
-      screen.classList.toggle('active', index === screenNumber - 1);
+  function updateToggleLabels() {
+    btnToggleFont.textContent = prefs.font === 'mincho' ? '明朝' : 'ゴシック';
+    btnToggleDir.textContent = prefs.direction === 'vertical' ? '縦書き' : '横書き';
+    btnToggleWrap.textContent = prefs.wrap === 'true' ? '全文表示' : '1行表示';
+  }
+
+  function applyPrefsToSortArea() {
+    sortArea.className = `dir-${prefs.direction}`;
+    const tanzakus = sortArea.querySelectorAll('.tanzaku');
+    tanzakus.forEach(el => {
+      el.className = `tanzaku font-${prefs.font} dir-${prefs.direction} wrap-${prefs.wrap}`;
     });
-    if (screenNumber === 2) {
+    updateToggleLabels();
+    savePrefs();
+    requestAnimationFrame(updateCustomScrollbar);
+  }
+
+  btnToggleFont.addEventListener('click', () => {
+    prefs.font = prefs.font === 'gothic' ? 'mincho' : 'gothic';
+    applyPrefsToSortArea();
+  });
+
+  btnToggleDir.addEventListener('click', () => {
+    prefs.direction = prefs.direction === 'horizontal' ? 'vertical' : 'horizontal';
+    applyPrefsToSortArea();
+  });
+
+  btnToggleWrap.addEventListener('click', () => {
+    prefs.wrap = prefs.wrap === 'false' ? 'true' : 'false';
+    applyPrefsToSortArea();
+  });
+
+  // --- 画面遷移 ---
+  function showScreen(target) {
+    screenSort.classList.toggle('active', target === 'sort');
+    screenFinish.classList.toggle('active', target === 'finish');
+    if (target === 'sort') {
       setTimeout(updateCustomScrollbar, 50);
     }
   }
 
-  function goToScreen2() {
-    const rawText = inputText.value;
-    const poems = rawText.split(/\n\s*\n/).map(p => p.trim()).filter(p => p !== '');
-    if (poems.length === 0) {
-      alert("短歌が入力されていません。");
-      return;
+  btnBackTl.addEventListener('click', () => {
+    window.location.href = 'saikiyo2.html';
+  });
+
+  btnBackSort.addEventListener('click', () => {
+    showScreen('sort');
+  });
+
+  btnToFinish.addEventListener('click', () => {
+    const tanzakus = Array.from(sortArea.children).filter(
+      el => el.classList.contains('tanzaku') && !el.classList.contains('dragging')
+    );
+    if (tanzakus.length === 0) return;
+
+    orderedCards = tanzakus.map(el => el._cardData);
+    finalResultText = orderedCards.map(c => c.content).join('\n\n');
+
+    previewArea.className = `font-${prefs.font}`;
+    previewArea.textContent = finalResultText;
+    showScreen('finish');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(finalResultText);
+      alert('コピー完了ロボ！');
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = finalResultText;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        alert('コピー完了ロボ！');
+      } catch (e) {
+        alert('コピーに失敗したロボ...');
+      }
+      document.body.removeChild(ta);
     }
+  });
 
-    const font = document.querySelector('input[name="font"]:checked').value;
-    currentDirection = document.querySelector('input[name="direction"]:checked').value;
-    const wrap = document.querySelector('input[name="wrap"]:checked').value;
+  btnSaveShelf.addEventListener('click', async () => {
+    if (orderedCards.length === 0) return;
 
-    sortArea.className = '';
-    sortArea.classList.add(`dir-${currentDirection}`);
+    const now = Date.now();
+    const firstClean = orderedCards[0].content.replace(/\s+/g, '');
+    const autoTitle = firstClean.slice(0, 5) || '無題';
+    const title = inputTitle.value.trim() || autoTitle;
+    const memo = inputMemo.value;
+    const tags = inputTags.value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(t => (t.startsWith('#') ? t : '#' + t));
+
+    // 完全スナップショット化
+    const items = orderedCards.map(c => ({
+      id: c.id,
+      content: c.content,
+      memo: c.memo || '',
+      tags: Array.isArray(c.tags) ? [...c.tags] : [],
+      lastupdated: c.lastupdated || c.id
+    }));
+
+    const shelf = {
+      id: now,
+      title,
+      memo,
+      tags,
+      items,
+      order: now,
+      lastupdated: now
+    };
+
+    try {
+      await saveShelf(shelf);
+      alert(`「${title}」をリスト棚に収めたロボ！`);
+      window.location.href = 'saikiyo2.html';
+    } catch (err) {
+      console.error(err);
+      alert('リスト棚への保存に失敗したロボ...');
+    }
+  });
+
+  // --- 短冊の生成 ---
+  function renderTanzakus(cards) {
+    sortArea.className = `dir-${prefs.direction}`;
     sortArea.innerHTML = '';
 
-    poems.forEach((poem, index) => {
+    cards.forEach((card, index) => {
       const tanzaku = document.createElement('div');
-      tanzaku.className = `tanzaku font-${font} dir-${currentDirection} wrap-${wrap}`;
-      
+      tanzaku.className = `tanzaku font-${prefs.font} dir-${prefs.direction} wrap-${prefs.wrap}`;
+      tanzaku._cardData = card;
+
       const numDiv = document.createElement('div');
       numDiv.className = 'item-num';
       numDiv.textContent = index + 1;
 
+      const textDiv = document.createElement('div');
+      textDiv.className = 'tanzaku-text';
+      textDiv.textContent = card.content;
+
       const handle = document.createElement('div');
       handle.className = 'drag-handle';
       handle.innerHTML = '&#9776;';
-      
-      const textDiv = document.createElement('div');
-      textDiv.className = 'tanzaku-text';
-      textDiv.textContent = poem;
 
       tanzaku.appendChild(numDiv);
       tanzaku.appendChild(textDiv);
@@ -321,35 +404,8 @@
       tanzaku.addEventListener('pointerdown', handlePointerDown);
       sortArea.appendChild(tanzaku);
     });
-    
-    goToScreen(2);
-  }
 
-  function goToScreen3() {
-    const tanzakus = Array.from(sortArea.children).filter(el => !el.classList.contains('placeholder') && !el.classList.contains('dragging') && el.id !== 'custom-scrollbar');
-    finalResultText = tanzakus.map(el => el.querySelector('.tanzaku-text').textContent).join('\n\n');
-    
-    const font = document.querySelector('input[name="font"]:checked').value;
-    previewArea.className = `font-${font}`;
-    previewArea.textContent = finalResultText;
-    
-    goToScreen(3);
-  }
-
-  function copyToClipboard() {
-    const ta = document.createElement('textarea');
-    ta.value = finalResultText;
-    ta.style.position = 'fixed'; 
-    ta.style.left = '-9999px';
-    document.body.appendChild(ta);
-    ta.select();
-    try { 
-      document.execCommand('copy'); 
-      alert("クリップボードにコピーしました！");
-    } catch(e) { 
-      alert("コピーに失敗しました。"); 
-    }
-    document.body.removeChild(ta);
+    setTimeout(updateCustomScrollbar, 50);
   }
 
   function updateListNumbers() {
@@ -360,16 +416,17 @@
     });
   }
 
+  // --- 自前スクロールバー ---
   function updateCustomScrollbar() {
     const track = document.getElementById('custom-scrollbar');
     const thumb = document.getElementById('custom-thumb');
-    if (!track || !thumb || !screens[1].classList.contains('active')) return;
+    if (!track || !thumb || !screenSort.classList.contains('active')) return;
 
-    if (currentDirection === 'horizontal') {
+    if (prefs.direction === 'horizontal') {
       const sH = sortArea.scrollHeight;
       const cH = sortArea.clientHeight;
       if (sH <= cH) { track.style.display = 'none'; return; }
-      
+
       track.style.display = 'block';
       track.style.top = '0'; track.style.bottom = '0';
       track.style.right = '2px'; track.style.left = 'auto';
@@ -406,6 +463,7 @@
   sortArea.addEventListener('scroll', () => { requestAnimationFrame(updateCustomScrollbar); });
   window.addEventListener('resize', () => { requestAnimationFrame(updateCustomScrollbar); });
 
+  // --- D&D ＋ エッジスクロール ---
   function handlePointerDown(e) {
     if (e.button !== 0 && e.type !== 'touchstart') return;
     if (!e.target.classList.contains('drag-handle')) return;
@@ -428,7 +486,6 @@
     if (!deskDraggedItem || deskIsDragging) return;
     const dx = Math.abs(e.clientX - deskDragStartX);
     const dy = Math.abs(e.clientY - deskDragStartY);
-    
     if (dx > 10 || dy > 10) {
       clearTimeout(deskDragTimer);
       deskDragTimer = null;
@@ -453,22 +510,21 @@
   function startDrag(e) {
     deskIsDragging = true;
     removePreDragListeners();
-    
+
     const rect = deskDraggedItem.getBoundingClientRect();
     deskOriginalRectLeft = rect.left;
     deskOriginalRectTop = rect.top;
 
     deskPlaceholder = document.createElement('div');
-    deskPlaceholder.className = `placeholder dir-${currentDirection}`;
-    
-    if (currentDirection === 'horizontal') {
+    deskPlaceholder.className = `placeholder dir-${prefs.direction}`;
+    if (prefs.direction === 'horizontal') {
       deskPlaceholder.style.height = `${rect.height}px`;
     } else {
       deskPlaceholder.style.width = `${rect.width}px`;
     }
 
     sortArea.insertBefore(deskPlaceholder, deskDraggedItem);
-    
+
     deskPointerOffsetX = e.clientX - rect.left;
     deskPointerOffsetY = e.clientY - rect.top;
 
@@ -479,7 +535,6 @@
     deskDraggedItem.style.top = `${rect.top}px`;
 
     document.body.appendChild(deskDraggedItem);
-
     if (navigator.vibrate) navigator.vibrate(40);
 
     deskLastClientX = e.clientX;
@@ -492,24 +547,25 @@
 
   function checkDragIntersection() {
     if (!deskDraggedItem || !deskPlaceholder) return;
-    
-    const checkX = currentDirection === 'vertical' ? deskLastClientX : deskDragStartX;
-    const checkY = currentDirection === 'horizontal' ? deskLastClientY : deskDragStartY;
-    
+
+    const checkX = prefs.direction === 'vertical' ? deskLastClientX : deskDragStartX;
+    const checkY = prefs.direction === 'horizontal' ? deskLastClientY : deskDragStartY;
+
     const elements = document.elementsFromPoint(checkX, checkY);
-    const target = elements.find(el => el.classList && el.classList.contains('tanzaku') && el.parentNode === sortArea);
+    const target = elements.find(
+      el => el.classList && el.classList.contains('tanzaku') && el.parentNode === sortArea
+    );
 
     if (target && target !== deskPlaceholder && target !== deskDraggedItem) {
       const targetRect = target.getBoundingClientRect();
-      
-      if (currentDirection === 'vertical') {
-        if (checkX > targetRect.left + (targetRect.width / 2)) {
+      if (prefs.direction === 'vertical') {
+        if (checkX > targetRect.left + targetRect.width / 2) {
           sortArea.insertBefore(deskPlaceholder, target);
         } else {
           sortArea.insertBefore(deskPlaceholder, target.nextSibling);
         }
       } else {
-        if (checkY < targetRect.top + (targetRect.height / 2)) {
+        if (checkY < targetRect.top + targetRect.height / 2) {
           sortArea.insertBefore(deskPlaceholder, target);
         } else {
           sortArea.insertBefore(deskPlaceholder, target.nextSibling);
@@ -523,13 +579,13 @@
       autoScrollRAF = null;
       return;
     }
-    
-    if (currentDirection === 'vertical') {
+
+    if (prefs.direction === 'vertical') {
       sortArea.scrollBy({ left: autoScrollSpeedX });
     } else {
       sortArea.scrollBy({ top: autoScrollSpeedY });
     }
-    
+
     checkDragIntersection();
     autoScrollRAF = requestAnimationFrame(startAutoScroll);
   }
@@ -539,13 +595,13 @@
     e.preventDefault();
 
     const now = Date.now();
-    if (now - lastMoveTime < 16) return; 
+    if (now - lastMoveTime < 16) return;
     lastMoveTime = now;
 
     deskLastClientX = e.clientX;
     deskLastClientY = e.clientY;
-    
-    if (currentDirection === 'horizontal') {
+
+    if (prefs.direction === 'horizontal') {
       deskDraggedItem.style.left = `${deskOriginalRectLeft}px`;
       deskDraggedItem.style.top = `${e.clientY - deskPointerOffsetY}px`;
     } else {
@@ -555,29 +611,29 @@
 
     const sortRect = sortArea.getBoundingClientRect();
     const dragRect = deskDraggedItem.getBoundingClientRect();
-    const threshold = 60; 
-    
-       if (currentDirection === 'vertical') {
+    const threshold = 60;
+
+    if (prefs.direction === 'vertical') {
       if (dragRect.left < sortRect.left + threshold) {
-        let dist = Math.max(0, sortRect.left + threshold - dragRect.left);
-        let ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedX = -(3 + ratio * 8); 
+        const dist = Math.max(0, sortRect.left + threshold - dragRect.left);
+        const ratio = Math.min(1, dist / threshold);
+        autoScrollSpeedX = -(3 + ratio * 8);
       } else if (dragRect.right > sortRect.right - threshold) {
-        let dist = Math.max(0, dragRect.right - (sortRect.right - threshold));
-        let ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedX = (3 + ratio * 8); 
+        const dist = Math.max(0, dragRect.right - (sortRect.right - threshold));
+        const ratio = Math.min(1, dist / threshold);
+        autoScrollSpeedX = 3 + ratio * 8;
       } else {
         autoScrollSpeedX = 0;
       }
     } else {
       if (dragRect.top < sortRect.top + threshold) {
-        let dist = Math.max(0, sortRect.top + threshold - dragRect.top);
-        let ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedY = -(3 + ratio * 8); 
+        const dist = Math.max(0, sortRect.top + threshold - dragRect.top);
+        const ratio = Math.min(1, dist / threshold);
+        autoScrollSpeedY = -(3 + ratio * 8);
       } else if (dragRect.bottom > sortRect.bottom - threshold) {
-        let dist = Math.max(0, dragRect.bottom - (sortRect.bottom - threshold));
-        let ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedY = (3 + ratio * 8); 
+        const dist = Math.max(0, dragRect.bottom - (sortRect.bottom - threshold));
+        const ratio = Math.min(1, dist / threshold);
+        autoScrollSpeedY = 3 + ratio * 8;
       } else {
         autoScrollSpeedY = 0;
       }
@@ -590,7 +646,7 @@
     checkDragIntersection();
   }
 
-  function handlePointerUp(e) {
+  function handlePointerUp() {
     if (!deskIsDragging || !deskDraggedItem) return;
 
     autoScrollSpeedX = 0;
@@ -610,13 +666,38 @@
     document.removeEventListener('pointermove', handlePointerMove);
     document.removeEventListener('pointerup', handlePointerUp);
     document.removeEventListener('pointercancel', handlePointerUp);
-    
+
     deskDraggedItem = null;
     deskIsDragging = false;
-    
+
     updateListNumbers();
     updateCustomScrollbar();
   }
+
+  // --- 起動時読み込み ---
+  window.addEventListener('DOMContentLoaded', async () => {
+    loadPrefs();
+    await initDB();
+
+    const params = new URLSearchParams(window.location.search);
+    const idsParam = params.get('ids');
+    if (!idsParam) {
+      sortArea.innerHTML = '<div class="empty-notice">カードが選択されていないロボ。<br>タイムラインからカードを選んで「机へ」で開いてくれロボ。</div>';
+      btnToFinish.disabled = true;
+      return;
+    }
+
+    const ids = idsParam.split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n));
+    const cards = (await Promise.all(ids.map(id => getCard(id)))).filter(Boolean);
+
+    if (cards.length === 0) {
+      sortArea.innerHTML = '<div class="empty-notice">該当するカードが見つからなかったロボ。</div>';
+      btnToFinish.disabled = true;
+      return;
+    }
+
+    renderTanzakus(cards);
+  });
 </script>
 </body>
 </html>
