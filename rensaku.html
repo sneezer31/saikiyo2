@@ -19,8 +19,21 @@
     overscroll-behavior: none;
   }
 
+  /* 横書き並べ替え時のみ：内枠の閉じ込めを外してページ全体へ伸ばす */
+  html.mode-page-scroll,
+  html.mode-page-scroll body {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
   #app-container {
     display: flex; flex-direction: column; height: 100%; max-width: 800px; margin: 0 auto;
+  }
+  html.mode-page-scroll #app-container {
+    height: auto;
+    min-height: 100dvh;
   }
 
   .screen {
@@ -28,6 +41,12 @@
     box-sizing: border-box; overflow: hidden;
   }
   .screen.active { display: flex; }
+
+  html.mode-page-scroll #screen-sort {
+    flex: none;
+    overflow: visible;
+    padding-bottom: 0;
+  }
 
   /* 上部ツールバー（3トグル） */
   .toolbar {
@@ -46,6 +65,12 @@
     position: relative; flex: 1; overflow: hidden;
     border: 1px solid #CCC; background: #EAE6DF;
   }
+  html.mode-page-scroll .sort-wrapper {
+    flex: none;
+    overflow: visible;
+    height: auto;
+  }
+
   #sort-area {
     display: flex; gap: 10px; padding: 12px; box-sizing: border-box;
     width: 100%; height: 100%;
@@ -53,6 +78,11 @@
     overflow-anchor: none;
   }
   #sort-area::-webkit-scrollbar { display: none; }
+
+  html.mode-page-scroll #sort-area.dir-horizontal {
+    height: auto;
+    overflow: visible;
+  }
 
   #custom-scrollbar {
     position: absolute; pointer-events: none; z-index: 100; display: none;
@@ -62,7 +92,7 @@
     border: 1px solid rgba(255,255,255,0.5); box-sizing: border-box;
   }
 
-  /* 短冊 */
+  /* 短冊（太さ・指馴染みはそのまま維持） */
   .tanzaku {
     background-color: #FFF; border: 1px solid #666;
     padding: 10px; user-select: none; -webkit-user-select: none;
@@ -129,11 +159,23 @@
   }
   .meta-form textarea { resize: none; }
 
-  /* 下部ボタン群（2段対応） */
+  /* 下部ボタン群（2段対応＋横書き時は下端スティッキー） */
   .btn-stack { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
   .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
+
+  html.mode-page-scroll #sort-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 200;
+    margin: 4px -15px 0 -15px;
+    padding: 8px 15px calc(8px + env(safe-area-inset-bottom, 0px)) 15px;
+    background: rgba(253, 251, 246, 0.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--text-color);
+  }
+
   .action-btn {
-    height: 46px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
+    height: 44px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
     background: var(--bg-color); color: var(--text-color);
     border: 1px solid var(--text-color); border-radius: 0; cursor: pointer; flex: 1;
     white-space: nowrap;
@@ -164,7 +206,7 @@
       <div id="custom-scrollbar"><div id="custom-thumb"></div></div>
     </div>
 
-    <div class="btn-group">
+    <div id="sort-bottom-bar" class="btn-group">
       <button type="button" id="btn-back-tl" class="action-btn">TLへ戻る</button>
       <button type="button" id="btn-to-finish" class="action-btn primary">次へ</button>
     </div>
@@ -202,6 +244,7 @@
   const screenSort = document.getElementById('screen-sort');
   const screenFinish = document.getElementById('screen-finish');
   const sortArea = document.getElementById('sort-area');
+  const sortBottomBar = document.getElementById('sort-bottom-bar');
   const previewArea = document.getElementById('preview-area');
 
   const btnToggleFont = document.getElementById('toggle-font');
@@ -241,6 +284,18 @@
   let autoScrollSpeedY = 0;
   let autoScrollRAF = null;
 
+  function isPageScrollMode() {
+    return screenSort.classList.contains('active') && prefs.direction === 'horizontal';
+  }
+
+  function updatePageScrollMode() {
+    const usePageScroll = isPageScrollMode();
+    document.documentElement.classList.toggle('mode-page-scroll', usePageScroll);
+    if (!usePageScroll) {
+      window.scrollTo(0, 0);
+    }
+  }
+
   // --- 設定の読み込み・保存・即時反映 ---
   function loadPrefs() {
     try {
@@ -269,6 +324,7 @@
       el.className = `tanzaku font-${prefs.font} dir-${prefs.direction} wrap-${prefs.wrap}`;
     });
     updateToggleLabels();
+    updatePageScrollMode();
     savePrefs();
     requestAnimationFrame(updateCustomScrollbar);
   }
@@ -292,6 +348,7 @@
   function showScreen(target) {
     screenSort.classList.toggle('active', target === 'sort');
     screenFinish.classList.toggle('active', target === 'finish');
+    updatePageScrollMode();
     if (target === 'sort') {
       setTimeout(updateCustomScrollbar, 50);
     }
@@ -322,7 +379,7 @@
   btnCopy.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(finalResultText);
-      alert('コピー完了ロボ！');
+      alert('コピーしました。');
     } catch (_) {
       const ta = document.createElement('textarea');
       ta.value = finalResultText;
@@ -332,9 +389,9 @@
       ta.select();
       try {
         document.execCommand('copy');
-        alert('コピー完了ロボ！');
+        alert('コピーしました。');
       } catch (e) {
-        alert('コピーに失敗したロボ...');
+        alert('コピーに失敗しました。');
       }
       document.body.removeChild(ta);
     }
@@ -356,7 +413,6 @@
       .filter(Boolean)
       .map(t => (t.startsWith('#') ? t : '#' + t));
 
-    // 完全スナップショット化
     const items = orderedCards.map(c => ({
       id: c.id,
       content: c.content,
@@ -380,7 +436,7 @@
       alert('棚に収めたロボ！');
     } catch (err) {
       console.error(err);
-      alert('リスト棚への保存に失敗したロボ...');
+      alert('リスト棚への保存に失敗しました。');
     }
   });
 
@@ -418,6 +474,7 @@
       sortArea.appendChild(tanzaku);
     });
 
+    updatePageScrollMode();
     setTimeout(updateCustomScrollbar, 50);
   }
 
@@ -429,48 +486,33 @@
     });
   }
 
-  // --- 自前スクロールバー ---
+  // --- 自前スクロールバー（縦書き時のみ使用） ---
   function updateCustomScrollbar() {
     const track = document.getElementById('custom-scrollbar');
     const thumb = document.getElementById('custom-thumb');
-    if (!track || !thumb || !screenSort.classList.contains('active')) return;
-
-    if (prefs.direction === 'horizontal') {
-      const sH = sortArea.scrollHeight;
-      const cH = sortArea.clientHeight;
-      if (sH <= cH) { track.style.display = 'none'; return; }
-
-      track.style.display = 'block';
-      track.style.top = '0'; track.style.bottom = '0';
-      track.style.right = '2px'; track.style.left = 'auto';
-      track.style.width = '8px'; track.style.height = '100%';
-
-      const thumbH = Math.max(20, (cH / sH) * cH);
-      const ratio = sortArea.scrollTop / (sH - cH);
-      thumb.style.width = '100%';
-      thumb.style.height = `${thumbH}px`;
-      thumb.style.top = `${ratio * (cH - thumbH)}px`;
-      thumb.style.left = '0';
-    } else {
-      const sW = sortArea.scrollWidth;
-      const cW = sortArea.clientWidth;
-      if (sW <= cW) { track.style.display = 'none'; return; }
-
-      track.style.display = 'block';
-      track.style.left = '0'; track.style.right = '0';
-      track.style.bottom = '2px'; track.style.top = 'auto';
-      track.style.height = '8px'; track.style.width = '100%';
-
-      const thumbW = Math.max(20, (cW / sW) * cW);
-      let scrollRatio = Math.abs(sortArea.scrollLeft) / (sW - cW);
-      if (scrollRatio > 1) scrollRatio = 1;
-
-      thumb.style.height = '100%';
-      thumb.style.width = `${thumbW}px`;
-      thumb.style.top = '0';
-      thumb.style.right = `${scrollRatio * (cW - thumbW)}px`;
-      thumb.style.left = 'auto';
+    if (!track || !thumb || !screenSort.classList.contains('active') || isPageScrollMode()) {
+      if (track) track.style.display = 'none';
+      return;
     }
+
+    const sW = sortArea.scrollWidth;
+    const cW = sortArea.clientWidth;
+    if (sW <= cW) { track.style.display = 'none'; return; }
+
+    track.style.display = 'block';
+    track.style.left = '0'; track.style.right = '0';
+    track.style.bottom = '2px'; track.style.top = 'auto';
+    track.style.height = '8px'; track.style.width = '100%';
+
+    const thumbW = Math.max(20, (cW / sW) * cW);
+    let scrollRatio = Math.abs(sortArea.scrollLeft) / (sW - cW);
+    if (scrollRatio > 1) scrollRatio = 1;
+
+    thumb.style.height = '100%';
+    thumb.style.width = `${thumbW}px`;
+    thumb.style.top = '0';
+    thumb.style.right = `${scrollRatio * (cW - thumbW)}px`;
+    thumb.style.left = 'auto';
   }
 
   sortArea.addEventListener('scroll', () => { requestAnimationFrame(updateCustomScrollbar); });
@@ -595,6 +637,8 @@
 
     if (prefs.direction === 'vertical') {
       sortArea.scrollBy({ left: autoScrollSpeedX });
+    } else if (isPageScrollMode()) {
+      window.scrollBy(0, autoScrollSpeedY);
     } else {
       sortArea.scrollBy({ top: autoScrollSpeedY });
     }
@@ -622,11 +666,11 @@
       deskDraggedItem.style.top = `${deskOriginalRectTop}px`;
     }
 
-    const sortRect = sortArea.getBoundingClientRect();
     const dragRect = deskDraggedItem.getBoundingClientRect();
-    const threshold = 60;
+    const threshold = 70;
 
     if (prefs.direction === 'vertical') {
+      const sortRect = sortArea.getBoundingClientRect();
       if (dragRect.left < sortRect.left + threshold) {
         const dist = Math.max(0, sortRect.left + threshold - dragRect.left);
         const ratio = Math.min(1, dist / threshold);
@@ -639,14 +683,17 @@
         autoScrollSpeedX = 0;
       }
     } else {
-      if (dragRect.top < sortRect.top + threshold) {
-        const dist = Math.max(0, sortRect.top + threshold - dragRect.top);
+      const topEdge = 0;
+      const barHeight = sortBottomBar ? sortBottomBar.offsetHeight : 0;
+      const bottomEdge = window.innerHeight - barHeight;
+      if (dragRect.top < topEdge + threshold) {
+        const dist = Math.max(0, topEdge + threshold - dragRect.top);
         const ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedY = -(3 + ratio * 8);
-      } else if (dragRect.bottom > sortRect.bottom - threshold) {
-        const dist = Math.max(0, dragRect.bottom - (sortRect.bottom - threshold));
+        autoScrollSpeedY = -(4 + ratio * 10);
+      } else if (dragRect.bottom > bottomEdge - threshold) {
+        const dist = Math.max(0, dragRect.bottom - (bottomEdge - threshold));
         const ratio = Math.min(1, dist / threshold);
-        autoScrollSpeedY = 3 + ratio * 8;
+        autoScrollSpeedY = 4 + ratio * 10;
       } else {
         autoScrollSpeedY = 0;
       }
@@ -695,7 +742,7 @@
     const params = new URLSearchParams(window.location.search);
     const idsParam = params.get('ids');
     if (!idsParam) {
-      sortArea.innerHTML = '<div class="empty-notice">カードが選択されていないロボ。<br>タイムラインからカードを選んで「机へ」で開いてくれロボ。</div>';
+      sortArea.innerHTML = '<div class="empty-notice">カードが選択されていません。<br>タイムラインからカードを選んで「机へ」で開いてください。</div>';
       btnToFinish.disabled = true;
       return;
     }
@@ -704,7 +751,7 @@
     const cards = (await Promise.all(ids.map(id => getCard(id)))).filter(Boolean);
 
     if (cards.length === 0) {
-      sortArea.innerHTML = '<div class="empty-notice">該当するカードが見つからなかったロボ。</div>';
+      sortArea.innerHTML = '<div class="empty-notice">該当するカードが見つかりませんでした。</div>';
       btnToFinish.disabled = true;
       return;
     }
