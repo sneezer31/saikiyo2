@@ -29,7 +29,14 @@
     <span>ゴミ箱を表示中（ダブルタップで復元・完全削除）</span>
     <button type="button" id="btn-exit-trash-mode">通常へ戻る</button>
   </div>
-
+<!-- 検索・推敲固定中インジケータ -->
+  <div id="search-mode-banner" style="display: none;">
+    <span id="search-banner-text">検索中</span>
+    <div class="search-banner-actions">
+      <button type="button" id="btn-search-banner-fix">推敲固定</button>
+      <button type="button" id="btn-search-banner-reset">解除</button>
+    </div>
+  </div>
   <main id="timeline"></main>
 
   <div id="footer-bar">
