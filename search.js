@@ -101,7 +101,7 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
   function enterSearching() {
     mode = 'searching';
     suikoVisibleIds.clear();
-    onSearchStateChanged();
+    onSearchStateChanged({ forceBottom: false, preserveScroll: false });
   }
 
   function enterSuiko() {
@@ -112,7 +112,8 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     DOM.inputContent.value = '';
     DOM.inputTags.value = '';
     if (onClearInputs) onClearInputs();
-    onSearchStateChanged();
+    // 今見ている元歌の位置を1ピクセルも動かさずに固定する
+    onSearchStateChanged({ forceBottom: false, preserveScroll: true });
   }
 
   function reset({ clearInputs = true } = {}) {
@@ -124,7 +125,7 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
       DOM.inputTags.value = '';
       if (onClearInputs) onClearInputs();
     }
-    onSearchStateChanged();
+    onSearchStateChanged({ forceBottom: true, preserveScroll: false });
   }
 
   // 3段階ギアチェンジ：検 → 推 → 解 → 検
@@ -143,16 +144,19 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     if (mode === 'searching') {
       mode = 'idle';
       suikoVisibleIds.clear();
+      return 'exited_search';
     } else if (mode === 'suiko') {
       suikoVisibleIds.add(newCardId);
+      return 'added_suiko';
     }
+    return 'idle';
   }
 
   function handleDebouncedInput() {
     if (mode !== 'searching') return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      onSearchStateChanged();
+      onSearchStateChanged({ forceBottom: false, preserveScroll: false });
     }, 250);
   }
 
