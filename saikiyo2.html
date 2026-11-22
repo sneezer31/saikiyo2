@@ -195,7 +195,7 @@
     </section>
   </div>
 
-  <!-- 右舷：データ管理パネル -->
+ <!-- 右舷：データ管理パネル -->
   <div id="panel-data" class="panel panel-wing">
     <div class="panel-header">
       <h2>データ管理</h2>
@@ -228,16 +228,34 @@
     </section>
 
     <section class="wing-section">
-      <h3>ゴミ箱の管理（完全削除）</h3>
-      <p id="dm-trash-status" class="dm-desc">ゴミ箱の中身を確認中...</p>
+      <h3>テキスト一括取り込み</h3>
+      <p class="dm-desc">複数の短歌やメモをまとめて登録します。空行（改行2回以上）で別カードに分割されます（空行なしは1カードになります）。</p>
+      <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1首目のテキスト&#10;&#10;2首目のテキスト&#10;&#10;3首目のテキスト"></textarea>
+      <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #作品 #未発表）">
+      <button id="btn-bulk-import" class="dm-btn primary full-width">まとめて取り込む</button>
+    </section>
+
+    <section class="wing-section">
+      <h3>期間指定の書き出し・整理</h3>
+      <p class="dm-desc">日時を分刻みで指定して、対象期間のカードだけを書き出し、またはゴミ箱へ移動します（片側のみの指定も可）。</p>
+      <div class="dm-range-stack">
+        <div class="dm-range-row">
+          <label for="input-range-start">開始</label>
+          <input type="datetime-local" id="input-range-start" class="wing-input">
+        </div>
+        <div class="dm-range-row">
+          <label for="input-range-end">終了</label>
+          <input type="datetime-local" id="input-range-end" class="wing-input">
+        </div>
+      </div>
       <div class="dm-btn-row">
-        <button id="btn-empty-trash" class="dm-btn primary">バックアップを作ってゴミ箱を空にする</button>
+        <button id="btn-range-export" class="dm-btn secondary">期間を書き出す (.txt)</button>
+        <button id="btn-range-trash" class="dm-btn danger-flex">期間をゴミ箱へ</button>
       </div>
     </section>
 
     <section class="wing-section">
-      <h3>一括整理（ゴミ箱へ移動）</h3>
-      <p class="dm-desc">ここではすぐには消去されず、いったんゴミ箱へ移動します。</p>
+      <h3>タグ整理・重複チェック</h3>
       <div class="dm-clean-block">
         <label>タグを指定してゴミ箱へ移動</label>
         <div class="dm-clean-row">
@@ -252,16 +270,20 @@
       </div>
 
       <div class="dm-clean-block">
-        <label>指定日より前のカードをゴミ箱へ移動</label>
-        <div class="dm-clean-row">
-          <input type="date" id="input-clean-date" class="wing-input">
-          <button id="btn-clean-date" class="dm-btn danger">移動</button>
-        </div>
+        <label>重複カードの整理</label>
+        <p class="dm-desc">本文・タグ・メモが完全一致する重複を検出し、古いほうを残して新しいほうをゴミ箱へ移動します（リスト棚のID参照も自動修復します）。</p>
+        <button id="btn-dedupe-cards" class="dm-btn secondary full-width">重複を検出して整理</button>
       </div>
     </section>
-  </div>
 
-  <!-- リスト棚パネル（フッター左から直行） -->
+    <section class="wing-section">
+      <h3>ゴミ箱の管理（完全削除）</h3>
+      <p id="dm-trash-status" class="dm-desc">ゴミ箱の中身を確認中...</p>
+      <div class="dm-btn-row">
+        <button id="btn-empty-trash" class="dm-btn primary">バックアップを作ってゴミ箱を空にする</button>
+      </div>
+    </section>
+  </div>  <!-- リスト棚パネル（フッター左から直行） -->
   <div id="panel-shelf" class="panel panel-wing">
     <div id="shelf-list-view">
       <div class="panel-header">
