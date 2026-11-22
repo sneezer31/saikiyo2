@@ -1,4 +1,4 @@
-/** さいきよ2 - 統合ロジック（第1陣：編集パネル棚送り・作成日格上げ・誤タップ対策反映） */
+/** さいきよ2 - 統合ロジック（第2陣：管制パネル実装・棚フッター常設・ヘッダー右寄せ反映） */
 
 import {
   initDB,
@@ -29,6 +29,7 @@ const DOM = {
   btnLeftWing: document.getElementById('btn-left-wing'),
   btnTop: document.getElementById('btn-top'),
   btnRightWing: document.getElementById('btn-right-wing'),
+  btnOpenShelf: document.getElementById('btn-open-shelf'),
   btnFab: document.getElementById('btn-fab'),
   footerBar: document.getElementById('footer-bar'),
   footerNormal: document.getElementById('footer-normal'),
@@ -53,11 +54,23 @@ const DOM = {
   btnDeleteEdit: document.getElementById('btn-delete-edit'),
   btnCopyEdit: document.getElementById('btn-copy-edit'),
   btnShelfEdit: document.getElementById('btn-shelf-edit'),
-  // 左右ウィングパネル
+  // ウィングパネル
   panelDisplay: document.getElementById('panel-display'),
   panelConfig: document.getElementById('panel-config'),
   panelKansei: document.getElementById('panel-kansei'),
   panelShelf: document.getElementById('panel-shelf'),
+  // 管制パネル
+  kanseiStats: document.getElementById('kansei-stats'),
+  btnExportFile: document.getElementById('btn-export-file'),
+  btnExportCopy: document.getElementById('btn-export-copy'),
+  btnImportFile: document.getElementById('btn-import-file'),
+  inputImportFile: document.getElementById('input-import-file'),
+  inputImportText: document.getElementById('input-import-text'),
+  btnImportText: document.getElementById('btn-import-text'),
+  inputCleanTag: document.getElementById('input-clean-tag'),
+  btnCleanTag: document.getElementById('btn-clean-tag'),
+  inputCleanDate: document.getElementById('input-clean-date'),
+  btnCleanDate: document.getElementById('btn-clean-date'),
   // リスト棚
   shelfListView: document.getElementById('shelf-list-view'),
   shelfList: document.getElementById('shelf-list'),
@@ -73,7 +86,7 @@ const DOM = {
   btnShelfReturnBlock: document.getElementById('btn-shelf-return-block')
 };
 
-// --- 左右ウィング・トグル制御 ---
+// --- ウィングパネル制御 ---
 const wingPanels = {
   display: DOM.panelDisplay,
   config: DOM.panelConfig,
@@ -82,6 +95,7 @@ const wingPanels = {
 };
 
 function updateHeaderWingButtons() {
+  // 左舷：表示 ⇄ 設定 トグル
   if (state.activeWing === 'display' || state.activeWing === 'config') {
     DOM.btnLeftWing.textContent = '設定';
     DOM.btnLeftWing.classList.add('is-active');
@@ -90,13 +104,17 @@ function updateHeaderWingButtons() {
     DOM.btnLeftWing.classList.remove('is-active');
   }
 
-  if (state.activeWing === 'kansei' || state.activeWing === 'shelf') {
-    DOM.btnRightWing.textContent = '棚';
+  // 右舷：管制 単独トグル
+  if (state.activeWing === 'kansei') {
     DOM.btnRightWing.classList.add('is-active');
   } else {
-    DOM.btnRightWing.textContent = '管制';
     DOM.btnRightWing.classList.remove('is-active');
   }
+}
+
+async function updateShelfButtonBadge() {
+  const shelves = await loadAllShelves();
+  DOM.btnOpenShelf.textContent = shelves.length > 0 ? `棚(${shelves.length})` : '棚';
 }
 
 async function openWing(wingName) {
@@ -108,6 +126,8 @@ async function openWing(wingName) {
     if (wingName === 'shelf') {
       showShelfListView();
       await renderShelfList();
+    } else if (wingName === 'kansei') {
+      await updateKanseiStats();
     }
   }
   updateHeaderWingButtons();
@@ -129,11 +149,17 @@ DOM.btnLeftWing.addEventListener('click', () => {
 
 DOM.btnRightWing.addEventListener('click', () => {
   if (state.activeWing === 'kansei') {
-    openWing('shelf');
-  } else if (state.activeWing === 'shelf') {
     closeAllWings();
   } else {
     openWing('kansei');
+  }
+});
+
+DOM.btnOpenShelf.addEventListener('click', () => {
+  if (state.activeWing === 'shelf') {
+    closeAllWings();
+  } else {
+    openWing('shelf');
   }
 });
 
@@ -374,6 +400,7 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
       lastupdated: now
     };
     await saveShelf(shelf);
+    await updateShelfButtonBadge();
     alert('棚に収めたロボ！');
   } else {
     const card = await getCard(state.editingCardId);
@@ -401,6 +428,7 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
       lastupdated: now
     };
     await saveShelf(shelf);
+    await updateShelfButtonBadge();
     alert('棚に収めたロボ！');
   }
 });
@@ -440,6 +468,185 @@ DOM.btnToDesk.addEventListener('click', () => {
   if (state.selectedIds.size === 0) return;
   const ids = Array.from(state.selectedIds).join(',');
   window.location.href = `rensaku.html?ids=${ids}`;
+});
+
+// --- 管制パネル（射出・回収・部分撤収） ---
+async function updateKanseiStats() {
+  const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
+  DOM.kanseiStats.textContent = `保管中：カード ${cards.length} 件 ／ リスト棚 ${shelves.length} 件`;
+}
+
+async function buildBackupPayload() {
+  const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
+  return {
+    app: 'saikiyo2',
+    version: 2,
+    exportedAt: Date.now(),
+    cards,
+    shelves
+  };
+}
+
+DOM.btnExportFile.addEventListener('click', async () => {
+  const payload = await buildBackupPayload();
+  const jsonStr = JSON.stringify(payload, null, 2);
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const fileName = `saikiyo2_backup_${ymd}.json`;
+
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+DOM.btnExportCopy.addEventListener('click', async () => {
+  const payload = await buildBackupPayload();
+  const jsonStr = JSON.stringify(payload);
+  try {
+    await navigator.clipboard.writeText(jsonStr);
+    alert(`JSON（カード${payload.cards.length}件・棚${payload.shelves.length}件）をコピーしたロボ！`);
+  } catch (_) {
+    alert('コピーに失敗したロボ...');
+  }
+});
+
+async function importBackupJson(rawText) {
+  let parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (_) {
+    alert('JSONの形式が正しくないロボ...');
+    return;
+  }
+
+  let cardsToImport = [];
+  let shelvesToImport = [];
+
+  if (Array.isArray(parsed)) {
+    cardsToImport = parsed.filter(c => c && typeof c.id !== 'undefined' && typeof c.content === 'string');
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.cards)) {
+      cardsToImport = parsed.cards.filter(c => c && typeof c.id !== 'undefined' && typeof c.content === 'string');
+    }
+    if (Array.isArray(parsed.shelves)) {
+      shelvesToImport = parsed.shelves.filter(s => s && typeof s.id !== 'undefined' && Array.isArray(s.items));
+    }
+  }
+
+  if (cardsToImport.length === 0 && shelvesToImport.length === 0) {
+    alert('回収できるデータが見つからなかったロボ。');
+    return;
+  }
+
+  if (cardsToImport.length > 0) await bulkSaveCards(cardsToImport);
+  if (shelvesToImport.length > 0) await bulkSaveShelves(shelvesToImport);
+
+  await renderTimeline();
+  await updateShelfButtonBadge();
+  await updateKanseiStats();
+  alert(`回収完了ロボ！（カード ${cardsToImport.length} 件 ／ リスト棚 ${shelvesToImport.length} 件を統合）`);
+}
+
+DOM.btnImportFile.addEventListener('click', () => {
+  DOM.inputImportFile.value = '';
+  DOM.inputImportFile.click();
+});
+
+DOM.inputImportFile.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  await importBackupJson(text);
+});
+
+DOM.btnImportText.addEventListener('click', async () => {
+  const raw = DOM.inputImportText.value.trim();
+  if (!raw) {
+    alert('JSONテキストが入力されていないロボ。');
+    return;
+  }
+  await importBackupJson(raw);
+  DOM.inputImportText.value = '';
+});
+
+document.querySelectorAll('.kansei-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    DOM.inputCleanTag.value = btn.dataset.tag;
+  });
+});
+
+DOM.btnCleanTag.addEventListener('click', async () => {
+  const rawTag = DOM.inputCleanTag.value.trim();
+  if (!rawTag) {
+    alert('撤収するタグを入力してくれロボ。');
+    return;
+  }
+  const targetTag = rawTag.startsWith('#') ? rawTag : '#' + rawTag;
+  const allCards = await loadAllCards();
+  const targets = allCards.filter(c => Array.isArray(c.tags) && c.tags.includes(targetTag));
+
+  if (targets.length === 0) {
+    alert(`タグ「${targetTag}」が付いたカードは 0 件ロボ。`);
+    return;
+  }
+
+  if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件を一括撤収（削除）するロボか？\n※先にJSONバックアップを取っておくと安心ロボ。`)) {
+    return;
+  }
+
+  const targetIdSet = new Set(targets.map(c => c.id));
+  await Promise.all(targets.map(c => deleteCard(c.id)));
+
+  if (state.suikoVisibleIds) {
+    state.suikoVisibleIds = state.suikoVisibleIds.filter(id => !targetIdSet.has(id));
+  }
+  targetIdSet.forEach(id => state.selectedIds.delete(id));
+  updateSelectionBar();
+
+  await renderTimeline();
+  await updateKanseiStats();
+  alert(`${targets.length} 件のカードを撤収したロボ！`);
+});
+
+DOM.btnCleanDate.addEventListener('click', async () => {
+  const dateVal = DOM.inputCleanDate.value;
+  if (!dateVal) {
+    alert('基準となる日付を選んでくれロボ。');
+    return;
+  }
+  const cutoffTs = new Date(`${dateVal}T00:00:00`).getTime();
+  if (Number.isNaN(cutoffTs)) return;
+
+  const allCards = await loadAllCards();
+  const targets = allCards.filter(c => c.id < cutoffTs);
+
+  if (targets.length === 0) {
+    alert(`${dateVal} より前のカードは 0 件ロボ。`);
+    return;
+  }
+
+  if (!confirm(`${dateVal} より前に作成されたカード ${targets.length} 件を一括撤収（削除）するロボか？\n※この操作は取り消せないロボ！`)) {
+    return;
+  }
+
+  const targetIdSet = new Set(targets.map(c => c.id));
+  await Promise.all(targets.map(c => deleteCard(c.id)));
+
+  if (state.suikoVisibleIds) {
+    state.suikoVisibleIds = state.suikoVisibleIds.filter(id => !targetIdSet.has(id));
+  }
+  targetIdSet.forEach(id => state.selectedIds.delete(id));
+  updateSelectionBar();
+
+  await renderTimeline();
+  await updateKanseiStats();
+  alert(`${targets.length} 件のカードを撤収したロボ！`);
 });
 
 // --- リスト棚パネル（一覧・D&D並べ替え・詳細・TL返却） ---
@@ -521,6 +728,7 @@ async function renderShelfList() {
         state.selectedShelfIds.delete(shelf.id);
         updateShelfBulkDeleteBtn();
         await renderShelfList();
+        await updateShelfButtonBadge();
       }
     });
 
@@ -594,6 +802,7 @@ DOM.btnShelfBulkDelete.addEventListener('click', async () => {
   state.selectedShelfIds.clear();
   updateShelfBulkDeleteBtn();
   await renderShelfList();
+  await updateShelfButtonBadge();
 });
 
 async function openShelfDetail(shelfId) {
@@ -705,6 +914,7 @@ DOM.btnShelfReturnBlock.addEventListener('click', async () => {
 window.addEventListener('DOMContentLoaded', async () => {
   await initDB();
   await renderTimeline();
+  await updateShelfButtonBadge();
   adjustTimelinePadding();
 
   const params = new URLSearchParams(window.location.search);
