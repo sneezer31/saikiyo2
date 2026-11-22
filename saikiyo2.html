@@ -11,7 +11,7 @@
     <button id="btn-left-wing" class="header-wing-btn">表示</button>
     <div class="header-right-group">
       <button id="btn-top">さいきよ2</button>
-      <button id="btn-right-wing" class="header-wing-btn">管制</button>
+      <button id="btn-right-wing" class="header-wing-btn">管理</button>
     </div>
   </header>
 
@@ -44,7 +44,7 @@
   <!-- 中央2層：プロパティ編集パネル -->
   <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
-      <h2>プロパティ編集</h2>
+      <h2>詳細・編集</h2>
       <button id="btn-close-edit">戻る</button>
     </div>
 
@@ -76,11 +76,11 @@
     <div class="edit-actions-stack">
       <div class="edit-actions">
         <button id="btn-delete-edit" class="btn-danger">削除</button>
-        <button id="btn-copy-edit" class="btn-secondary">コピペ</button>
+        <button id="btn-copy-edit" class="btn-secondary">コピー</button>
       </div>
       <div class="edit-actions">
         <button id="btn-shelf-edit" class="btn-secondary">棚に収める</button>
-        <button id="btn-save-edit" class="btn-primary">変更</button>
+        <button id="btn-save-edit" class="btn-primary">保存</button>
       </div>
     </div>
   </div>
@@ -170,55 +170,55 @@
     </section>
   </div>
 
-  <!-- 右舷：管制パネル -->
-  <div id="panel-kansei" class="panel panel-wing">
+  <!-- 右舷：データ管理パネル -->
+  <div id="panel-data" class="panel panel-wing">
     <div class="panel-header">
-      <h2>管制パネル</h2>
+      <h2>データ管理</h2>
       <button class="btn-close-wing">閉じる</button>
     </div>
 
-    <div id="kansei-stats" class="panel-status-bar">読み込み中...</div>
+    <div id="data-stats" class="panel-status-bar">読み込み中...</div>
 
     <section class="wing-section">
-      <h3>データ射出（バックアップ）</h3>
-      <p class="kansei-desc">全カードとリスト棚を丸ごとJSON形式で書き出します。</p>
-      <div class="kansei-btn-row">
-        <button id="btn-export-file" class="kansei-btn primary">JSONファイル保存</button>
-        <button id="btn-export-copy" class="kansei-btn secondary">テキストをコピー</button>
+      <h3>バックアップ（書き出し）</h3>
+      <p class="dm-desc">全カードとリスト棚をまとめてJSON形式で書き出します。</p>
+      <div class="dm-btn-row">
+        <button id="btn-export-file" class="dm-btn primary">JSONファイル保存</button>
+        <button id="btn-export-copy" class="dm-btn secondary">テキストをコピー</button>
       </div>
     </section>
 
     <section class="wing-section">
-      <h3>データ回収（復元・統合）</h3>
-      <p class="kansei-desc">既存データは消さず、ID単位で統合（マージ）します。</p>
-      <div class="kansei-btn-row">
-        <button id="btn-import-file" class="kansei-btn secondary">JSONファイルから回収</button>
+      <h3>復元（読み込み・統合）</h3>
+      <p class="dm-desc">既存データは消さず、ID単位で統合（マージ）します。</p>
+      <div class="dm-btn-row">
+        <button id="btn-import-file" class="dm-btn secondary">JSONファイルから復元</button>
         <input type="file" id="input-import-file" accept=".json,application/json" style="display: none;">
       </div>
-      <textarea id="input-import-text" class="kansei-textarea" rows="3" placeholder="コピーしたJSONテキストをここに貼り付けて回収することもできます"></textarea>
-      <button id="btn-import-text" class="kansei-btn secondary full-width">貼り付けテキストから回収</button>
+      <textarea id="input-import-text" class="dm-textarea" rows="3" placeholder="コピーしたJSONテキストをここに貼り付けて復元することもできます"></textarea>
+      <button id="btn-import-text" class="dm-btn secondary full-width">貼り付けテキストから復元</button>
     </section>
 
     <section class="wing-section">
-      <h3>掃除・部分撤収（カード削除）</h3>
-      <div class="kansei-clean-block">
-        <label>タグで一括撤収</label>
-        <div class="kansei-clean-row">
+      <h3>一括削除（カード整理）</h3>
+      <div class="dm-clean-block">
+        <label>タグを指定して一括削除</label>
+        <div class="dm-clean-row">
           <input type="text" id="input-clean-tag" class="wing-input" placeholder="例: #ゴミ">
-          <button id="btn-clean-tag" class="kansei-btn danger">撤収</button>
+          <button id="btn-clean-tag" class="dm-btn danger">削除</button>
         </div>
-        <div class="kansei-tag-chips">
-          <button type="button" class="kansei-chip" data-tag="#ゴミ">#ゴミ</button>
-          <button type="button" class="kansei-chip" data-tag="#アーカイブ">#アーカイブ</button>
-          <button type="button" class="kansei-chip" data-tag="#既発表">#既発表</button>
+        <div class="dm-tag-chips">
+          <button type="button" class="dm-chip" data-tag="#ゴミ">#ゴミ</button>
+          <button type="button" class="dm-chip" data-tag="#アーカイブ">#アーカイブ</button>
+          <button type="button" class="dm-chip" data-tag="#既発表">#既発表</button>
         </div>
       </div>
 
-      <div class="kansei-clean-block">
-        <label>指定日より前のカードを一括撤収</label>
-        <div class="kansei-clean-row">
+      <div class="dm-clean-block">
+        <label>指定日より前のカードを一括削除</label>
+        <div class="dm-clean-row">
           <input type="date" id="input-clean-date" class="wing-input">
-          <button id="btn-clean-date" class="kansei-btn danger">撤収</button>
+          <button id="btn-clean-date" class="dm-btn danger">削除</button>
         </div>
       </div>
     </section>
@@ -250,7 +250,7 @@
         <button id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
         <div class="shelf-detail-return-row">
           <button id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
-          <button id="btn-shelf-return-block" class="shelf-act-btn primary">塊でTLへ</button>
+          <button id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
         </div>
       </div>
     </div>
