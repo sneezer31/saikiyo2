@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（ギアチェンジ式検索・選択ドック・一括タグ差分更新・論理削除対応） */
+/** さいきよ2 - メイン司令塔（スマートスクロール・ギアチェンジ式検索・選択ドック・一括タグ差分更新・論理削除対応） */
 
 import {
   initDB,
@@ -99,29 +99,37 @@ const DOM = {
   filterDateTo: document.getElementById('filter-date-to')
 };
 
+// --- スマートスクロール判定 ---
+function isTimelineAtLatest() {
+  if (state.sortOrder === 'desc') {
+    return DOM.timeline.scrollTop <= 40;
+  }
+  return (DOM.timeline.scrollHeight - DOM.timeline.scrollTop) <= (DOM.timeline.clientHeight + 40);
+}
+
 // --- サブモジュール初期化 ---
 const shelfModule = initShelfModule({
-  onTimelineUpdated: renderTimeline,
+  onTimelineUpdated: () => renderTimeline({ forceBottom: true }),
   onCloseWings: closeAllWings
 });
 
 const dataManagerModule = initDataManagerModule({
   onDataChanged: async () => {
-    await renderTimeline();
+    await renderTimeline({ preserveScroll: true });
     await shelfModule.updateBadge();
   },
   onCardsDeleted: async (deletedIdSet) => {
     deletedIdSet.forEach(id => state.selectedIds.delete(id));
     updateSelectionBar();
-    await renderTimeline();
+    await renderTimeline({ preserveScroll: true });
   }
 });
 
 const searchModule = initSearchModule({
   getVisibleCardIds: () => state.lastRenderedIds,
-  onClearInputs: adjustTimelinePadding,
-  onSearchStateChanged: async () => {
-    await renderTimeline();
+  onClearInputs: () => adjustTimelinePadding({ allowAutoScroll: false }),
+  onSearchStateChanged: async (opts = {}) => {
+    await renderTimeline(opts);
     updateHeaderWingButtons();
   }
 });
@@ -254,7 +262,7 @@ DOM.btnExitTrashMode.addEventListener('click', async () => {
   state.viewScope = 'active';
   state.selectedIds.clear();
   updateSelectionBar();
-  await renderTimeline();
+  await renderTimeline({ forceBottom: true });
   updateHeaderWingButtons();
 });
 
@@ -342,7 +350,7 @@ async function renderDisplayPanel() {
     btn.addEventListener('click', async () => {
       if (state.filterTags.has(tag)) state.filterTags.delete(tag);
       else state.filterTags.add(tag);
-      await renderTimeline();
+      await renderTimeline({ forceBottom: true });
       await renderDisplayPanel();
       updateHeaderWingButtons();
     });
@@ -357,7 +365,7 @@ async function renderDisplayPanel() {
     btn.addEventListener('click', async () => {
       if (state.filterTags.has('__NO_TAG__')) state.filterTags.delete('__NO_TAG__');
       else state.filterTags.add('__NO_TAG__');
-      await renderTimeline();
+      await renderTimeline({ forceBottom: true });
       await renderDisplayPanel();
       updateHeaderWingButtons();
     });
@@ -386,7 +394,7 @@ document.querySelectorAll('[data-scope]').forEach(btn => {
     state.viewScope = nextScope;
     state.selectedIds.clear();
     updateSelectionBar();
-    await renderTimeline();
+    await renderTimeline({ forceBottom: true });
     await renderDisplayPanel();
     updateHeaderWingButtons();
   });
@@ -406,14 +414,14 @@ DOM.btnDisplayReset.addEventListener('click', async () => {
 
 DOM.filterDateFrom.addEventListener('change', async () => {
   state.filterDateFrom = DOM.filterDateFrom.value;
-  await renderTimeline();
+  await renderTimeline({ forceBottom: true });
   await renderDisplayPanel();
   updateHeaderWingButtons();
 });
 
 DOM.filterDateTo.addEventListener('change', async () => {
   state.filterDateTo = DOM.filterDateTo.value;
-  await renderTimeline();
+  await renderTimeline({ forceBottom: true });
   await renderDisplayPanel();
   updateHeaderWingButtons();
 });
@@ -421,7 +429,7 @@ DOM.filterDateTo.addEventListener('change', async () => {
 document.querySelectorAll('[data-sort]').forEach(btn => {
   btn.addEventListener('click', async () => {
     state.sortOrder = btn.dataset.sort;
-    await renderTimeline();
+    await renderTimeline({ forceBottom: true });
     await renderDisplayPanel();
   });
 });
@@ -429,29 +437,32 @@ document.querySelectorAll('[data-sort]').forEach(btn => {
 document.querySelectorAll('[data-memo-mode]').forEach(btn => {
   btn.addEventListener('click', async () => {
     state.memoMode = btn.dataset.memoMode;
-    await renderTimeline();
+    await renderTimeline({ preserveScroll: true });
     await renderDisplayPanel();
   });
 });
 
-// --- コンソール＆タイムライン ---
-function adjustTimelinePadding() {
+// --- コンソール＆タイムライン（スマート追従：過去作閲覧中は絶対に動かさない） ---
+function adjustTimelinePadding({ allowAutoScroll = true } = {}) {
+  const wasAtLatest = isTimelineAtLatest();
   const isConsoleOpen = DOM.consoleArea.classList.contains('open');
   const activeElement = isConsoleOpen ? DOM.consoleArea : DOM.footerBar;
   const pad = Math.max(activeElement.offsetHeight, 64);
   DOM.timeline.style.paddingBottom = `${pad}px`;
-  if (state.sortOrder === 'asc' && state.selectedIds.size === 0) {
+
+  if (allowAutoScroll && wasAtLatest && state.sortOrder === 'asc' && state.selectedIds.size === 0) {
     DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
   }
 }
 
-window.addEventListener('resize', adjustTimelinePadding);
-DOM.inputContent.addEventListener('input', adjustTimelinePadding);
+window.addEventListener('resize', () => adjustTimelinePadding({ allowAutoScroll: true }));
+DOM.inputContent.addEventListener('input', () => adjustTimelinePadding({ allowAutoScroll: true }));
 
 function openInputConsole() {
+  const wasAtLatest = isTimelineAtLatest();
   DOM.footerBar.style.display = 'none';
   DOM.consoleArea.classList.add('open');
-  adjustTimelinePadding();
+  adjustTimelinePadding({ allowAutoScroll: wasAtLatest });
   setTimeout(() => DOM.inputContent.focus(), 100);
   history.pushState({ state: 'inputMode' }, '');
 }
@@ -461,7 +472,7 @@ function closeInputConsole() {
   if (state.selectedIds.size === 0) {
     DOM.footerBar.style.display = 'block';
   }
-  adjustTimelinePadding();
+  adjustTimelinePadding({ allowAutoScroll: false });
   DOM.inputContent.blur();
   DOM.inputTags.blur();
 }
@@ -482,7 +493,10 @@ function handleCheckboxChange(cardId, isChecked) {
   updateSelectionBar();
 }
 
-async function renderTimeline() {
+async function renderTimeline({ forceBottom = false, preserveScroll = false } = {}) {
+  const prevScroll = DOM.timeline.scrollTop;
+  const wasAtLatest = isTimelineAtLatest();
+
   const allCards = await loadAllCards();
   DOM.timeline.innerHTML = '';
 
@@ -498,7 +512,14 @@ async function renderTimeline() {
   });
 
   searchModule.updateUI(displayCards.length);
-  DOM.timeline.scrollTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+
+  if (preserveScroll) {
+    DOM.timeline.scrollTop = prevScroll;
+  } else if (forceBottom || wasAtLatest) {
+    DOM.timeline.scrollTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+  } else {
+    DOM.timeline.scrollTop = prevScroll;
+  }
 }
 
 function updateSelectionBar() {
@@ -550,15 +571,17 @@ DOM.btnSend.addEventListener('click', async () => {
 
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
-  adjustTimelinePadding();
+  adjustTimelinePadding({ allowAutoScroll: false });
 
-  searchModule.handleCardCreated(now);
+  const searchResult = searchModule.handleCardCreated(now);
 
   if (state.viewScope === 'trash') {
     state.viewScope = 'active';
   }
   updateHeaderWingButtons();
-  await renderTimeline();
+
+  // 推敲固定中は上の元歌を見失わないようスマート追従（通常投稿は最新へ）
+  await renderTimeline({ forceBottom: searchResult !== 'added_suiko' });
 });
 
 // --- 鑑賞モード（広げて読む） ---
@@ -705,7 +728,7 @@ DOM.btnSaveEdit.addEventListener('click', async () => {
     }
   }
 
-  await renderTimeline();
+  await renderTimeline({ preserveScroll: true });
   DOM.panelEdit.classList.remove('active');
   DOM.editMemo.disabled = false;
 });
@@ -736,7 +759,7 @@ DOM.btnRestoreEdit.addEventListener('click', async () => {
     }
   }
 
-  await renderTimeline();
+  await renderTimeline({ preserveScroll: true });
   await dataManagerModule.checkMonthlyTrashReminder();
   DOM.panelEdit.classList.remove('active');
   DOM.editMemo.disabled = false;
@@ -835,7 +858,7 @@ DOM.btnDeleteEdit.addEventListener('click', async () => {
   }
 
   updateSelectionBar();
-  await renderTimeline();
+  await renderTimeline({ preserveScroll: true });
   await dataManagerModule.checkMonthlyTrashReminder();
   DOM.panelEdit.classList.remove('active');
   DOM.editMemo.disabled = false;
@@ -851,10 +874,10 @@ DOM.btnToDesk.addEventListener('click', () => {
 window.addEventListener('DOMContentLoaded', async () => {
   loadConfig();
   await initDB();
-  await renderTimeline();
+  await renderTimeline({ forceBottom: true });
   await shelfModule.updateBadge();
   updateHeaderWingButtons();
-  adjustTimelinePadding();
+  adjustTimelinePadding({ allowAutoScroll: true });
   await dataManagerModule.checkMonthlyTrashReminder();
 
   const params = new URLSearchParams(window.location.search);
