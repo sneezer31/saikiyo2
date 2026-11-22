@@ -349,7 +349,7 @@ header button {
   box-sizing: border-box;
 }
 
-/* セグメント切替ボタン（表示・設定パネル共通） */
+/* セグメント切替ボタン */
 .seg-group {
   display: flex;
   gap: 8px;
@@ -486,19 +486,19 @@ header button {
   margin: 0;
 }
 
-/* --- 管制パネル --- */
-.kansei-desc {
+/* --- データ管理パネル --- */
+.dm-desc {
   margin: 0 0 10px 0;
   font-size: var(--font-small);
   color: var(--muted-color);
   line-height: 1.5;
 }
-.kansei-btn-row {
+.dm-btn-row {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
 }
-.kansei-btn {
+.dm-btn {
   height: 44px;
   padding: 0 12px;
   font-size: 0.95rem;
@@ -510,24 +510,24 @@ header button {
   flex: 1;
   box-sizing: border-box;
 }
-.kansei-btn.primary {
+.dm-btn.primary {
   background: var(--text-color);
   color: var(--bg-color);
 }
-.kansei-btn.secondary {
+.dm-btn.secondary {
   background: var(--header-bg);
   color: var(--text-color);
 }
-.kansei-btn.danger {
+.dm-btn.danger {
   background: var(--bg-color);
   color: var(--text-color);
   flex: 0 0 84px;
 }
-.kansei-btn.full-width {
+.dm-btn.full-width {
   width: 100%;
   flex: none;
 }
-.kansei-textarea {
+.dm-textarea {
   width: 100%;
   padding: 8px 10px;
   font-size: 0.85rem;
@@ -540,26 +540,26 @@ header button {
   margin-bottom: 8px;
   resize: vertical;
 }
-.kansei-clean-block {
+.dm-clean-block {
   margin-bottom: 14px;
 }
-.kansei-clean-block label {
+.dm-clean-block label {
   display: block;
   font-size: 0.9rem;
   font-weight: bold;
   margin-bottom: 6px;
 }
-.kansei-clean-row {
+.dm-clean-row {
   display: flex;
   gap: 8px;
 }
-.kansei-tag-chips {
+.dm-tag-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
 }
-.kansei-chip {
+.dm-chip {
   background: var(--header-bg);
   color: var(--text-color);
   border: 1px solid var(--text-color);
