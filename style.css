@@ -56,50 +56,52 @@ header button {
   overscroll-behavior-y: none;
 }
 
-/* --- カードデザイン（美しく整理） --- */
+/* --- カードデザイン（誤タップ防止＆チェック拡大） --- */
 .card {
   position: relative;
   background: transparent;
   border: none;
-  margin-bottom: 45px; 
+  margin-bottom: 40px; 
   border-radius: 0;
   display: flex;
   flex-direction: column; 
 }
 
-/* 上段：本文 */
+/* 上段：本文（ダブルタップで編集） */
 .card-body {
   padding: 0 5px; 
   cursor: pointer;
   font-size: var(--font-base);
   line-height: var(--line-height);
   white-space: pre-wrap; word-break: break-all;
+  touch-action: manipulation;
 }
 
 /* 下段：メタデータとチェックボックス */
 .card-meta-wrap {
   display: flex;
   align-items: center; 
-  padding: 6px 5px 0 5px;
+  padding: 2px 5px 0 0;
 }
 .card-check-wrap {
-  margin-right: 8px; 
-  display: flex; align-items: center;
+  margin-right: 4px; 
+  display: flex; align-items: center; justify-content: center;
 }
 .card-check {
   appearance: none; -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   margin: 0; 
   cursor: pointer;
   outline: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 .card-check::before {
   content: "□";
-  font-size: 1.0rem;
+  font-size: 1.45rem;
   color: var(--text-color);
   line-height: 1;
 }
@@ -110,7 +112,7 @@ header button {
 .card-meta-info {
   font-size: var(--font-small); 
   color: #666;
-  line-height: 1;
+  line-height: 1.2;
 }
 
 /* --- 透過ボトムバー（フッター） --- */
@@ -242,10 +244,13 @@ header button {
 }
 
 /* --- 編集パネル --- */
-#edit-timestamp {
-  font-size: var(--font-small);
-  color: #666;
-  margin-bottom: 8px;
+.edit-meta-box {
+  width: 100%;
+  padding: 10px;
+  font-size: var(--font-base);
+  border: 1px solid var(--text-color);
+  background: var(--header-bg);
+  box-sizing: border-box;
 }
 
 #edit-content-view { 
@@ -267,15 +272,22 @@ header button {
   padding: 5px 12px; font-size: var(--font-base); cursor: pointer;
 }
 
-.edit-actions {
+.edit-actions-stack {
   display: flex;
+  flex-direction: column;
   gap: 10px;
   margin-top: 20px;
   width: 100%;
 }
 
+.edit-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
 .edit-actions button {
-  height: 50px;
+  height: 48px;
   padding: 0;
   font-size: 1.0rem;
   font-weight: bold;
@@ -286,22 +298,20 @@ header button {
   display: flex;       
   align-items: center; 
   justify-content: center; 
+  flex: 1;
 }
 
 #btn-delete-edit {
-  flex: 2;
   background: var(--bg-color);
   color: var(--text-color);
   border: 1px solid var(--text-color);
 }
-#btn-copy-edit {
-  flex: 2;
+#btn-copy-edit, #btn-shelf-edit {
   background: var(--header-bg);
   color: var(--text-color);
   border: 1px solid var(--text-color);
 }
 #btn-save-edit {
-  flex: 3; 
   background: var(--text-color);
   color: var(--bg-color);
   border: 1px solid var(--text-color);
