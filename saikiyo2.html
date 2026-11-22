@@ -8,12 +8,9 @@
 </head>
 <body>
   <header>
-    <div class="header-left">
-      <button id="btn-config">≡</button>
-      <button id="btn-calendar">📅</button>
-      <button id="btn-kansei">管制</button>
-    </div>
-    <button id="btn-top">さいきよ</button>
+    <button id="btn-left-wing" class="header-wing-btn">表示</button>
+    <button id="btn-top">さいきよ2</button>
+    <button id="btn-right-wing" class="header-wing-btn">管制</button>
   </header>
 
   <main id="timeline"></main>
@@ -42,7 +39,8 @@
     </div>
   </div>
 
-  <div id="panel-edit" class="panel">
+  <!-- 中央2層：プロパティ編集パネル -->
+  <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
       <h2>プロパティ編集</h2>
       <button id="btn-close-edit">戻る</button>
@@ -71,6 +69,65 @@
       <button id="btn-delete-edit" class="btn-danger">削除</button>
       <button id="btn-copy-edit" class="btn-secondary">コピペ</button>
       <button id="btn-save-edit" class="btn-primary">変更</button>
+    </div>
+  </div>
+
+  <!-- 左舷1枚目：表示パネル（仮枠） -->
+  <div id="panel-display" class="panel panel-wing">
+    <div class="panel-header">
+      <h2>表示パネル</h2>
+      <button class="btn-close-wing">閉じる</button>
+    </div>
+    <p class="panel-placeholder-note">タグ絞り込み・カレンダー・表示切替をここに実装予定ロボ。</p>
+  </div>
+
+  <!-- 左舷2枚目：コンフィグパネル（仮枠） -->
+  <div id="panel-config" class="panel panel-wing">
+    <div class="panel-header">
+      <h2>コンフィグ</h2>
+      <button class="btn-close-wing">閉じる</button>
+    </div>
+    <p class="panel-placeholder-note">カラーモード（銀鼠等）・文字サイズ・角丸設定をここに実装予定ロボ。</p>
+  </div>
+
+  <!-- 右舷1枚目：管制パネル（仮枠） -->
+  <div id="panel-kansei" class="panel panel-wing">
+    <div class="panel-header">
+      <h2>管制パネル</h2>
+      <button class="btn-close-wing">閉じる</button>
+    </div>
+    <p class="panel-placeholder-note">JSON射出（自分宛て共有）・回収・タグ/日付の部分撤収をここに実装予定ロボ。</p>
+  </div>
+
+  <!-- 右舷2枚目：リスト棚パネル -->
+  <div id="panel-shelf" class="panel panel-wing">
+    <div id="shelf-list-view">
+      <div class="panel-header">
+        <h2>リスト棚</h2>
+        <div class="panel-header-actions">
+          <button id="btn-shelf-bulk-delete" style="display: none;">選択削除</button>
+          <button class="btn-close-wing">閉じる</button>
+        </div>
+      </div>
+      <div id="shelf-list"></div>
+    </div>
+
+    <!-- リスト棚：詳細ビュー -->
+    <div id="shelf-detail-view" style="display: none;">
+      <div class="panel-header">
+        <h2 id="shelf-detail-title">リスト詳細</h2>
+        <button id="btn-shelf-back-list">棚一覧へ</button>
+      </div>
+      <div id="shelf-detail-meta" class="shelf-detail-meta"></div>
+      <div id="shelf-detail-memo" class="shelf-detail-memo"></div>
+      <div id="shelf-detail-items" class="shelf-detail-items"></div>
+      <div class="shelf-detail-actions">
+        <button id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
+        <div class="shelf-detail-return-row">
+          <button id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
+          <button id="btn-shelf-return-block" class="shelf-act-btn primary">塊でTLへ</button>
+        </div>
+      </div>
     </div>
   </div>
 
