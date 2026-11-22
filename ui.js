@@ -12,7 +12,7 @@ export function formatDateWithWeekday(timestamp) {
   return `${y}/${m}/${day}（${w}）${hh}:${mm}`;
 }
 
-export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit) {
+export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit, showMemoFull = false) {
   const cardEl = document.createElement('div');
   cardEl.className = 'card';
   cardEl.dataset.id = card.id;
@@ -33,6 +33,17 @@ export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit) {
     }
   });
 
+  cardEl.appendChild(bodyEl);
+
+  // オプション：メモ本文のインライン表示
+  const hasMemo = Boolean(card.memo && card.memo.trim());
+  if (showMemoFull && hasMemo) {
+    const memoEl = document.createElement('div');
+    memoEl.className = 'card-memo-preview';
+    memoEl.textContent = card.memo;
+    cardEl.appendChild(memoEl);
+  }
+
   // 下段：チェックボックス ＋ メタデータ（タグ・メモ有無）
   const metaWrap = document.createElement('div');
   metaWrap.className = 'card-meta-wrap';
@@ -52,13 +63,12 @@ export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit) {
   const metaInfo = document.createElement('div');
   metaInfo.className = 'card-meta-info';
   const tagsText = Array.isArray(card.tags) && card.tags.length > 0 ? card.tags.join(' ') : '';
-  const memoMark = card.memo && card.memo.trim() ? ' [メモ]' : '';
+  const memoMark = !showMemoFull && hasMemo ? ' [メモ]' : '';
   metaInfo.textContent = `${tagsText}${memoMark}`.trim();
 
   metaWrap.appendChild(checkWrap);
   metaWrap.appendChild(metaInfo);
 
-  cardEl.appendChild(bodyEl);
   cardEl.appendChild(metaWrap);
   return cardEl;
 }
