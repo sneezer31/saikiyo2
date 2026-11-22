@@ -15,6 +15,21 @@
     </div>
   </header>
 
+  <!-- 月イチゴミ箱整理の念押しバー（30日経過時のみ表示） -->
+  <div id="trash-remind-bar" style="display: none;">
+    <div id="trash-remind-text" class="trash-remind-text"></div>
+    <div class="trash-remind-actions">
+      <button type="button" id="btn-remind-empty" class="trash-remind-btn primary">バックアップして空にする</button>
+      <button type="button" id="btn-remind-later" class="trash-remind-btn secondary">来月また確認</button>
+    </div>
+  </div>
+
+  <!-- ゴミ箱表示中インジケータ -->
+  <div id="trash-mode-banner" style="display: none;">
+    <span>ゴミ箱を表示中（ダブルタップで復元・完全削除）</span>
+    <button type="button" id="btn-exit-trash-mode">通常へ戻る</button>
+  </div>
+
   <main id="timeline"></main>
 
   <div id="footer-bar">
@@ -41,7 +56,7 @@
     </div>
   </div>
 
-  <!-- 中央2層：プロパティ編集パネル -->
+  <!-- 中央2層：詳細・編集パネル -->
   <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
       <h2>詳細・編集</h2>
@@ -67,15 +82,17 @@
         <button class="helper-tag">#作品</button>
         <button class="helper-tag">#メモ</button>
         <button class="helper-tag">#アーカイブ</button>
-        <button class="helper-tag">#ゴミ</button>
         <button class="helper-tag">#未発表</button>
         <button class="helper-tag">#既発表</button>
       </div>
     </div>
 
     <div class="edit-actions-stack">
+      <div class="edit-actions" id="edit-restore-row" style="display: none;">
+        <button id="btn-restore-edit" class="btn-primary">ゴミ箱から戻す</button>
+      </div>
       <div class="edit-actions">
-        <button id="btn-delete-edit" class="btn-danger">削除</button>
+        <button id="btn-delete-edit" class="btn-danger">ゴミ箱へ</button>
         <button id="btn-copy-edit" class="btn-secondary">コピー</button>
       </div>
       <div class="edit-actions">
@@ -96,6 +113,14 @@
     </div>
 
     <div id="display-status" class="panel-status-bar">全件表示中</div>
+
+    <section class="wing-section">
+      <h3>表示対象</h3>
+      <div class="seg-group">
+        <button type="button" class="seg-btn active" data-scope="active">通常</button>
+        <button type="button" class="seg-btn" data-scope="trash" id="btn-scope-trash">ゴミ箱 (0)</button>
+      </div>
+    </section>
 
     <section class="wing-section">
       <h3>タグで絞り込み（複数選択可）</h3>
@@ -179,7 +204,7 @@
 
     <div id="data-stats" class="panel-status-bar">読み込み中...</div>
 
-     <section class="wing-section">
+    <section class="wing-section">
       <h3>バックアップ（書き出し）</h3>
       <p class="dm-desc">全カードとリスト棚をまとめて書き出します（メール等で送りやすいよう拡張子は .txt にしています）。</p>
       <div class="dm-btn-row">
@@ -193,7 +218,7 @@
 
     <section class="wing-section">
       <h3>復元（読み込み・統合）</h3>
-      <p class="dm-desc">メール等に保存した .txt / .json ファイルを読み込みます。既存データは消さずID単位で統合します。</p>
+      <p class="dm-desc">メール等に保存した .txt / .json ファイルを読み込みます（初代さいきよ形式にも対応）。既存データは消さずID単位で統合します。</p>
       <div class="dm-btn-row">
         <button id="btn-import-file" class="dm-btn secondary">ファイルから復元 (.txt / .json)</button>
         <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
@@ -203,25 +228,34 @@
     </section>
 
     <section class="wing-section">
-      <h3>一括削除（カード整理）</h3>
+      <h3>ゴミ箱の管理（完全削除）</h3>
+      <p id="dm-trash-status" class="dm-desc">ゴミ箱の中身を確認中...</p>
+      <div class="dm-btn-row">
+        <button id="btn-empty-trash" class="dm-btn primary">バックアップを作ってゴミ箱を空にする</button>
+      </div>
+    </section>
+
+    <section class="wing-section">
+      <h3>一括整理（ゴミ箱へ移動）</h3>
+      <p class="dm-desc">ここではすぐには消去されず、いったんゴミ箱へ移動します。</p>
       <div class="dm-clean-block">
-        <label>タグを指定して一括削除</label>
+        <label>タグを指定してゴミ箱へ移動</label>
         <div class="dm-clean-row">
-          <input type="text" id="input-clean-tag" class="wing-input" placeholder="例: #ゴミ">
-          <button id="btn-clean-tag" class="dm-btn danger">削除</button>
+          <input type="text" id="input-clean-tag" class="wing-input" placeholder="例: #アーカイブ">
+          <button id="btn-clean-tag" class="dm-btn danger">移動</button>
         </div>
         <div class="dm-tag-chips">
-          <button type="button" class="dm-chip" data-tag="#ゴミ">#ゴミ</button>
           <button type="button" class="dm-chip" data-tag="#アーカイブ">#アーカイブ</button>
           <button type="button" class="dm-chip" data-tag="#既発表">#既発表</button>
+          <button type="button" class="dm-chip" data-tag="#メモ">#メモ</button>
         </div>
       </div>
 
       <div class="dm-clean-block">
-        <label>指定日より前のカードを一括削除</label>
+        <label>指定日より前のカードをゴミ箱へ移動</label>
         <div class="dm-clean-row">
           <input type="date" id="input-clean-date" class="wing-input">
-          <button id="btn-clean-date" class="dm-btn danger">削除</button>
+          <button id="btn-clean-date" class="dm-btn danger">移動</button>
         </div>
       </div>
     </section>
