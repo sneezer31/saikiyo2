@@ -179,21 +179,24 @@
 
     <div id="data-stats" class="panel-status-bar">読み込み中...</div>
 
-    <section class="wing-section">
+     <section class="wing-section">
       <h3>バックアップ（書き出し）</h3>
-      <p class="dm-desc">全カードとリスト棚をまとめてJSON形式で書き出します。</p>
+      <p class="dm-desc">全カードとリスト棚をまとめて書き出します（メール等で送りやすいよう拡張子は .txt にしています）。</p>
       <div class="dm-btn-row">
-        <button id="btn-export-file" class="dm-btn primary">JSONファイル保存</button>
+        <button id="btn-export-share" class="dm-btn primary">共有で送る（メール等）</button>
+      </div>
+      <div class="dm-btn-row">
+        <button id="btn-export-file" class="dm-btn secondary">ファイル保存 (.txt)</button>
         <button id="btn-export-copy" class="dm-btn secondary">テキストをコピー</button>
       </div>
     </section>
 
     <section class="wing-section">
       <h3>復元（読み込み・統合）</h3>
-      <p class="dm-desc">既存データは消さず、ID単位で統合（マージ）します。</p>
+      <p class="dm-desc">メール等に保存した .txt / .json ファイルを読み込みます。既存データは消さずID単位で統合します。</p>
       <div class="dm-btn-row">
-        <button id="btn-import-file" class="dm-btn secondary">JSONファイルから復元</button>
-        <input type="file" id="input-import-file" accept=".json,application/json" style="display: none;">
+        <button id="btn-import-file" class="dm-btn secondary">ファイルから復元 (.txt / .json)</button>
+        <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
       </div>
       <textarea id="input-import-text" class="dm-textarea" rows="3" placeholder="コピーしたJSONテキストをここに貼り付けて復元することもできます"></textarea>
       <button id="btn-import-text" class="dm-btn secondary full-width">貼り付けテキストから復元</button>
