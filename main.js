@@ -1,4 +1,4 @@
-/** さいきよ2 - 統合ロジック（第2陣：管制パネル実装・棚フッター常設・ヘッダー右寄せ反映） */
+/** さいきよ2 - 統合ロジック（左舷：表示パネル・設定パネル完全実装） */
 
 import {
   initDB,
@@ -15,11 +15,25 @@ import {
 } from './db.js';
 import { createTankaCard, updateSelectionBarUI, formatDateWithWeekday } from './ui.js';
 
+const CONFIG_KEY = 'saikiyo2_config';
+
+let config = {
+  theme: 'kinari',   // 'kinari' | 'ginnezumi' | 'sumi'
+  size: 'medium',    // 'small' | 'medium' | 'large'
+  font: 'gothic',    // 'gothic' | 'mincho'
+  radius: 'none'     // 'none' | 'soft'
+};
+
 let state = {
-  suikoVisibleIds: null,
+  searchKeyword: '',
+  filterTags: new Set(),  // タグ名 または '__NO_TAG__'
+  filterDateFrom: '',
+  filterDateTo: '',
+  sortOrder: 'asc',       // 'asc' | 'desc'
+  memoMode: 'badge',      // 'badge' | 'full'
   selectedIds: new Set(),
   editingCardId: null,
-  activeWing: null, // null | 'display' | 'config' | 'kansei' | 'shelf'
+  activeWing: null,       // null | 'display' | 'config' | 'kansei' | 'shelf'
   selectedShelfIds: new Set(),
   currentDetailShelfId: null
 };
@@ -59,6 +73,12 @@ const DOM = {
   panelConfig: document.getElementById('panel-config'),
   panelKansei: document.getElementById('panel-kansei'),
   panelShelf: document.getElementById('panel-shelf'),
+  // 表示パネル
+  btnDisplayReset: document.getElementById('btn-display-reset'),
+  displayStatus: document.getElementById('display-status'),
+  displayTagList: document.getElementById('display-tag-list'),
+  filterDateFrom: document.getElementById('filter-date-from'),
+  filterDateTo: document.getElementById('filter-date-to'),
   // 管制パネル
   kanseiStats: document.getElementById('kansei-stats'),
   btnExportFile: document.getElementById('btn-export-file'),
@@ -86,6 +106,73 @@ const DOM = {
   btnShelfReturnBlock: document.getElementById('btn-shelf-return-block')
 };
 
+// --- 設定（コンフィグ）の読み込み・反映 ---
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
+    if (saved) config = { ...config, ...saved };
+  } catch (_) {}
+  applyConfig();
+}
+
+function saveConfig() {
+  try {
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+  } catch (_) {}
+}
+
+function applyConfig() {
+  document.body.dataset.theme = config.theme;
+  document.body.dataset.size = config.size;
+  document.body.dataset.font = config.font;
+  document.body.dataset.radius = config.radius;
+
+  document.querySelectorAll('[data-config-theme]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.configTheme === config.theme);
+  });
+  document.querySelectorAll('[data-config-size]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.configSize === config.size);
+  });
+  document.querySelectorAll('[data-config-font]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.configFont === config.font);
+  });
+  document.querySelectorAll('[data-config-radius]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.configRadius === config.radius);
+  });
+}
+
+document.querySelectorAll('[data-config-theme]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    config.theme = btn.dataset.configTheme;
+    applyConfig();
+    saveConfig();
+  });
+});
+
+document.querySelectorAll('[data-config-size]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    config.size = btn.dataset.configSize;
+    applyConfig();
+    saveConfig();
+  });
+});
+
+document.querySelectorAll('[data-config-font]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    config.font = btn.dataset.configFont;
+    applyConfig();
+    saveConfig();
+  });
+});
+
+document.querySelectorAll('[data-config-radius]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    config.radius = btn.dataset.configRadius;
+    applyConfig();
+    saveConfig();
+  });
+});
+
 // --- ウィングパネル制御 ---
 const wingPanels = {
   display: DOM.panelDisplay,
@@ -94,17 +181,26 @@ const wingPanels = {
   shelf: DOM.panelShelf
 };
 
+function hasActiveFilter() {
+  return Boolean(
+    state.searchKeyword ||
+    state.filterTags.size > 0 ||
+    state.filterDateFrom ||
+    state.filterDateTo
+  );
+}
+
 function updateHeaderWingButtons() {
-  // 左舷：表示 ⇄ 設定 トグル
+  const filterMark = hasActiveFilter() ? '●' : '';
+
   if (state.activeWing === 'display' || state.activeWing === 'config') {
     DOM.btnLeftWing.textContent = '設定';
     DOM.btnLeftWing.classList.add('is-active');
   } else {
-    DOM.btnLeftWing.textContent = '表示';
+    DOM.btnLeftWing.textContent = `表示${filterMark}`;
     DOM.btnLeftWing.classList.remove('is-active');
   }
 
-  // 右舷：管制 単独トグル
   if (state.activeWing === 'kansei') {
     DOM.btnRightWing.classList.add('is-active');
   } else {
@@ -123,7 +219,9 @@ async function openWing(wingName) {
 
   if (wingName && wingPanels[wingName]) {
     wingPanels[wingName].classList.add('active');
-    if (wingName === 'shelf') {
+    if (wingName === 'display') {
+      await renderDisplayPanel();
+    } else if (wingName === 'shelf') {
       showShelfListView();
       await renderShelfList();
     } else if (wingName === 'kansei') {
@@ -169,7 +267,163 @@ document.querySelectorAll('.btn-close-wing').forEach(btn => {
 
 DOM.btnTop.addEventListener('click', () => {
   if (state.activeWing) closeAllWings();
-  DOM.timeline.scrollTo({ top: DOM.timeline.scrollHeight, behavior: 'smooth' });
+  const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+  DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
+});
+
+// --- 表示パネル（絞り込み・並び順・メモ表示） ---
+function filterCards(allCards) {
+  let result = allCards;
+
+  if (state.searchKeyword) {
+    const kw = state.searchKeyword;
+    result = result.filter(c =>
+      c.content.includes(kw) ||
+      (c.memo && c.memo.includes(kw)) ||
+      (Array.isArray(c.tags) && c.tags.some(t => t.includes(kw)))
+    );
+  }
+
+  if (state.filterTags.size > 0) {
+    result = result.filter(c => {
+      const cardTags = Array.isArray(c.tags) ? c.tags : [];
+      for (const reqTag of state.filterTags) {
+        if (reqTag === '__NO_TAG__') {
+          if (cardTags.length > 0) return false;
+        } else {
+          if (!cardTags.includes(reqTag)) return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  if (state.filterDateFrom) {
+    const fromTs = new Date(`${state.filterDateFrom}T00:00:00`).getTime();
+    if (!Number.isNaN(fromTs)) {
+      result = result.filter(c => c.id >= fromTs);
+    }
+  }
+
+  if (state.filterDateTo) {
+    const toTs = new Date(`${state.filterDateTo}T23:59:59.999`).getTime();
+    if (!Number.isNaN(toTs)) {
+      result = result.filter(c => c.id <= toTs);
+    }
+  }
+
+  return result;
+}
+
+async function renderDisplayPanel() {
+  const allCards = await loadAllCards();
+  const filtered = filterCards(allCards);
+
+  if (hasActiveFilter()) {
+    const kwNote = state.searchKeyword ? `（検索: ${state.searchKeyword}）` : '';
+    DOM.displayStatus.textContent = `絞り込み中：${filtered.length} / ${allCards.length} 件${kwNote}`;
+  } else {
+    DOM.displayStatus.textContent = `全件表示中：${allCards.length} 件`;
+  }
+
+  // タグ集計
+  const tagCounts = new Map();
+  let noTagCount = 0;
+  allCards.forEach(c => {
+    const tags = Array.isArray(c.tags) ? c.tags : [];
+    if (tags.length === 0) {
+      noTagCount++;
+    } else {
+      tags.forEach(t => tagCounts.set(t, (tagCounts.get(t) || 0) + 1));
+    }
+  });
+
+  DOM.displayTagList.innerHTML = '';
+
+  const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]);
+  sortedTags.forEach(([tag, count]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-chip' + (state.filterTags.has(tag) ? ' active' : '');
+    btn.textContent = `${tag} (${count})`;
+    btn.addEventListener('click', async () => {
+      if (state.filterTags.has(tag)) state.filterTags.delete(tag);
+      else state.filterTags.add(tag);
+      await renderTimeline();
+      await renderDisplayPanel();
+      updateHeaderWingButtons();
+    });
+    DOM.displayTagList.appendChild(btn);
+  });
+
+  if (noTagCount > 0) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-chip' + (state.filterTags.has('__NO_TAG__') ? ' active' : '');
+    btn.textContent = `タグなし (${noTagCount})`;
+    btn.addEventListener('click', async () => {
+      if (state.filterTags.has('__NO_TAG__')) state.filterTags.delete('__NO_TAG__');
+      else state.filterTags.add('__NO_TAG__');
+      await renderTimeline();
+      await renderDisplayPanel();
+      updateHeaderWingButtons();
+    });
+    DOM.displayTagList.appendChild(btn);
+  }
+
+  if (sortedTags.length === 0 && noTagCount === 0) {
+    DOM.displayTagList.innerHTML = '<span style="color:var(--muted-color); font-size:0.85rem;">まだカードがありません。</span>';
+  }
+
+  DOM.filterDateFrom.value = state.filterDateFrom;
+  DOM.filterDateTo.value = state.filterDateTo;
+
+  document.querySelectorAll('[data-sort]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.sort === state.sortOrder);
+  });
+  document.querySelectorAll('[data-memo-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.memoMode === state.memoMode);
+  });
+}
+
+DOM.btnDisplayReset.addEventListener('click', async () => {
+  state.searchKeyword = '';
+  state.filterTags.clear();
+  state.filterDateFrom = '';
+  state.filterDateTo = '';
+  await renderTimeline();
+  await renderDisplayPanel();
+  updateHeaderWingButtons();
+});
+
+DOM.filterDateFrom.addEventListener('change', async () => {
+  state.filterDateFrom = DOM.filterDateFrom.value;
+  await renderTimeline();
+  await renderDisplayPanel();
+  updateHeaderWingButtons();
+});
+
+DOM.filterDateTo.addEventListener('change', async () => {
+  state.filterDateTo = DOM.filterDateTo.value;
+  await renderTimeline();
+  await renderDisplayPanel();
+  updateHeaderWingButtons();
+});
+
+document.querySelectorAll('[data-sort]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    state.sortOrder = btn.dataset.sort;
+    await renderTimeline();
+    await renderDisplayPanel();
+  });
+});
+
+document.querySelectorAll('[data-memo-mode]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    state.memoMode = btn.dataset.memoMode;
+    await renderTimeline();
+    await renderDisplayPanel();
+  });
 });
 
 // --- コンソールの高さ自動計算＆吸着アルゴリズム ---
@@ -179,7 +433,9 @@ function adjustTimelinePadding() {
   const exactHeight = activeElement.offsetHeight;
 
   DOM.timeline.style.paddingBottom = `${exactHeight}px`;
-  DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
+  if (state.sortOrder === 'asc') {
+    DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
+  }
 }
 
 window.addEventListener('resize', adjustTimelinePadding);
@@ -225,17 +481,17 @@ async function renderTimeline() {
   const allCards = await loadAllCards();
   DOM.timeline.innerHTML = '';
 
-  const displayCards = state.suikoVisibleIds
-    ? allCards.filter(c => state.suikoVisibleIds.includes(c.id))
-    : allCards;
+  const displayCards = filterCards(allCards);
+  displayCards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
 
-  displayCards.sort((a, b) => a.id - b.id).forEach(card => {
+  const showMemoFull = state.memoMode === 'full';
+  displayCards.forEach(card => {
     const isSelected = state.selectedIds.has(card.id);
-    const cardElement = createTankaCard(card, isSelected, handleCheckboxChange, openEditPanel);
+    const cardElement = createTankaCard(card, isSelected, handleCheckboxChange, openEditPanel, showMemoFull);
     DOM.timeline.appendChild(cardElement);
   });
 
-  DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
+  DOM.timeline.scrollTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
 }
 
 function updateSelectionBar() {
@@ -257,29 +513,15 @@ DOM.btnSend.addEventListener('click', async () => {
   const card = { id: now, content: content, memo: "", tags: tags, lastupdated: now };
 
   await saveCard(card);
-  if (state.suikoVisibleIds) state.suikoVisibleIds.push(card.id);
-
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
   await renderTimeline();
 });
 
 DOM.btnSearch.addEventListener('click', async () => {
-  const keyword = DOM.inputContent.value.trim();
-  if (!keyword) {
-    state.suikoVisibleIds = null;
-    await renderTimeline();
-    if (DOM.consoleArea.classList.contains('open')) history.back();
-    return;
-  }
-
-  const allCards = await loadAllCards();
-  state.suikoVisibleIds = allCards.filter(c =>
-    c.content.includes(keyword) ||
-    (c.tags && Array.isArray(c.tags) && c.tags.some(t => t.includes(keyword)))
-  ).map(c => c.id);
-
+  state.searchKeyword = DOM.inputContent.value.trim();
   await renderTimeline();
+  updateHeaderWingButtons();
   if (DOM.consoleArea.classList.contains('open')) history.back();
 });
 
@@ -371,7 +613,6 @@ DOM.btnCopyEdit.addEventListener('click', async () => {
   }
 });
 
-// 編集パネルから棚に収める（1首／一括 共通）
 DOM.btnShelfEdit.addEventListener('click', async () => {
   const now = Date.now();
   const inputTags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
@@ -439,12 +680,8 @@ DOM.btnDeleteEdit.addEventListener('click', async () => {
       const deletePromises = Array.from(state.selectedIds).map(id => deleteCard(id));
       await Promise.all(deletePromises);
 
-      if (state.suikoVisibleIds) {
-        state.suikoVisibleIds = state.suikoVisibleIds.filter(id => !state.selectedIds.has(id));
-      }
       state.selectedIds.clear();
       updateSelectionBar();
-
       await renderTimeline();
       DOM.panelEdit.classList.remove('active');
     }
@@ -452,12 +689,8 @@ DOM.btnDeleteEdit.addEventListener('click', async () => {
     if (confirm('本当にこのカードを削除するロボか？この操作は取り消せないロボ！')) {
       await deleteCard(state.editingCardId);
 
-      if (state.suikoVisibleIds) {
-        state.suikoVisibleIds = state.suikoVisibleIds.filter(id => id !== state.editingCardId);
-      }
       state.selectedIds.delete(state.editingCardId);
       updateSelectionBar();
-
       await renderTimeline();
       DOM.panelEdit.classList.remove('active');
     }
@@ -470,7 +703,7 @@ DOM.btnToDesk.addEventListener('click', () => {
   window.location.href = `rensaku.html?ids=${ids}`;
 });
 
-// --- 管制パネル（射出・回収・部分撤収） ---
+// --- 管制パネル（バックアップ・復元・一括削除） ---
 async function updateKanseiStats() {
   const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
   DOM.kanseiStats.textContent = `保管中：カード ${cards.length} 件 ／ リスト棚 ${shelves.length} 件`;
@@ -540,7 +773,7 @@ async function importBackupJson(rawText) {
   }
 
   if (cardsToImport.length === 0 && shelvesToImport.length === 0) {
-    alert('回収できるデータが見つからなかったロボ。');
+    alert('読み込めるデータが見つからなかったロボ。');
     return;
   }
 
@@ -550,7 +783,7 @@ async function importBackupJson(rawText) {
   await renderTimeline();
   await updateShelfButtonBadge();
   await updateKanseiStats();
-  alert(`回収完了ロボ！（カード ${cardsToImport.length} 件 ／ リスト棚 ${shelvesToImport.length} 件を統合）`);
+  alert(`復元完了ロボ！（カード ${cardsToImport.length} 件 ／ リスト棚 ${shelvesToImport.length} 件を統合）`);
 }
 
 DOM.btnImportFile.addEventListener('click', () => {
@@ -584,7 +817,7 @@ document.querySelectorAll('.kansei-chip').forEach(btn => {
 DOM.btnCleanTag.addEventListener('click', async () => {
   const rawTag = DOM.inputCleanTag.value.trim();
   if (!rawTag) {
-    alert('撤収するタグを入力してくれロボ。');
+    alert('削除するタグを入力してくれロボ。');
     return;
   }
   const targetTag = rawTag.startsWith('#') ? rawTag : '#' + rawTag;
@@ -596,22 +829,19 @@ DOM.btnCleanTag.addEventListener('click', async () => {
     return;
   }
 
-  if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件を一括撤収（削除）するロボか？\n※先にJSONバックアップを取っておくと安心ロボ。`)) {
+  if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件を一括削除するロボか？\n※先にバックアップを取っておくと安心ロボ。`)) {
     return;
   }
 
   const targetIdSet = new Set(targets.map(c => c.id));
   await Promise.all(targets.map(c => deleteCard(c.id)));
 
-  if (state.suikoVisibleIds) {
-    state.suikoVisibleIds = state.suikoVisibleIds.filter(id => !targetIdSet.has(id));
-  }
   targetIdSet.forEach(id => state.selectedIds.delete(id));
   updateSelectionBar();
 
   await renderTimeline();
   await updateKanseiStats();
-  alert(`${targets.length} 件のカードを撤収したロボ！`);
+  alert(`${targets.length} 件のカードを削除したロボ！`);
 });
 
 DOM.btnCleanDate.addEventListener('click', async () => {
@@ -631,25 +861,22 @@ DOM.btnCleanDate.addEventListener('click', async () => {
     return;
   }
 
-  if (!confirm(`${dateVal} より前に作成されたカード ${targets.length} 件を一括撤収（削除）するロボか？\n※この操作は取り消せないロボ！`)) {
+  if (!confirm(`${dateVal} より前に作成されたカード ${targets.length} 件を一括削除するロボか？\n※この操作は取り消せないロボ！`)) {
     return;
   }
 
   const targetIdSet = new Set(targets.map(c => c.id));
   await Promise.all(targets.map(c => deleteCard(c.id)));
 
-  if (state.suikoVisibleIds) {
-    state.suikoVisibleIds = state.suikoVisibleIds.filter(id => !targetIdSet.has(id));
-  }
   targetIdSet.forEach(id => state.selectedIds.delete(id));
   updateSelectionBar();
 
   await renderTimeline();
   await updateKanseiStats();
-  alert(`${targets.length} 件のカードを撤収したロボ！`);
+  alert(`${targets.length} 件のカードを削除したロボ！`);
 });
 
-// --- リスト棚パネル（一覧・D&D並べ替え・詳細・TL返却） ---
+// --- リスト棚パネル ---
 function updateShelfBulkDeleteBtn() {
   const count = state.selectedShelfIds.size;
   if (count > 0) {
@@ -879,9 +1106,6 @@ DOM.btnShelfReturnScatter.addEventListener('click', async () => {
   }));
 
   await bulkSaveCards(newCards);
-  if (state.suikoVisibleIds) {
-    state.suikoVisibleIds.push(...newCards.map(c => c.id));
-  }
   await renderTimeline();
   closeAllWings();
   alert(`${newCards.length}首をバラでタイムライン直近へ戻したロボ！`);
@@ -902,9 +1126,6 @@ DOM.btnShelfReturnBlock.addEventListener('click', async () => {
   };
 
   await saveCard(blockCard);
-  if (state.suikoVisibleIds) {
-    state.suikoVisibleIds.push(blockCard.id);
-  }
   await renderTimeline();
   closeAllWings();
   alert(`「${shelf.title || '無題'}」を塊でタイムライン直近へ戻したロボ！`);
@@ -912,9 +1133,11 @@ DOM.btnShelfReturnBlock.addEventListener('click', async () => {
 
 // --- 起動処理 ---
 window.addEventListener('DOMContentLoaded', async () => {
+  loadConfig();
   await initDB();
   await renderTimeline();
   await updateShelfButtonBadge();
+  updateHeaderWingButtons();
   adjustTimelinePadding();
 
   const params = new URLSearchParams(window.location.search);
