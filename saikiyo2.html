@@ -37,15 +37,17 @@
       <button id="btn-open-shelf" class="footer-shelf-btn">棚</button>
       <button id="btn-fab">＋</button>
     </div>
-    <div id="footer-selection" style="display: none;">
-      <span id="selection-count">0件選択中</span>
-      <div class="footer-right">
-        <button id="btn-batch-edit">一括編集</button>
-        <button id="btn-to-desk">机へ</button>
-        <button id="btn-cancel-selection">取消</button>
-      </div>
-    </div>
   </div>
+
+  <!-- 右からぬっと出る選択ドック -->
+  <aside id="selection-dock" aria-hidden="true">
+    <div id="selection-count" class="dock-count">0件選択</div>
+    <button type="button" id="btn-select-all" class="dock-btn secondary">全選択</button>
+    <button type="button" id="btn-batch-edit" class="dock-btn primary">一括編集</button>
+    <button type="button" id="btn-to-desk" class="dock-btn primary">机へ</button>
+    <button type="button" id="btn-dock-reader" class="dock-btn secondary">広げて読む</button>
+    <button type="button" id="btn-cancel-selection" class="dock-btn ghost">取消</button>
+  </aside>
 
   <div id="console-area">
     <textarea id="input-content" rows="1" placeholder="本文を入力..."></textarea>
@@ -59,7 +61,7 @@
   <!-- 中央2層：詳細・編集パネル -->
   <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
-      <h2>詳細・編集</h2>
+      <h2 id="edit-panel-title">詳細・編集</h2>
       <button id="btn-close-edit">戻る</button>
     </div>
 
@@ -68,22 +70,24 @@
       <div id="edit-timestamp" class="edit-meta-box"></div>
     </div>
 
-    <div class="edit-readonly" id="edit-content-view" style="margin-bottom:15px; padding:10px; font-size:1.1rem; white-space:pre-wrap;"></div>
-    
+    <div class="edit-readonly" id="edit-content-view" style="margin-bottom:8px; padding:10px; font-size:1.1rem; white-space:pre-wrap;"></div>
+    <button type="button" id="btn-open-reader-edit" class="edit-reader-btn">広げて読む</button>
+
     <div class="edit-group">
       <label>メモ</label>
       <textarea id="edit-memo" placeholder="あとから書き換え自由"></textarea>
     </div>
-    
+
     <div class="edit-group">
       <label>タグ</label>
       <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
+      <div id="edit-tags-hint" class="edit-hint" style="display: none;"></div>
       <div class="tag-helpers">
-        <button class="helper-tag">#作品</button>
-        <button class="helper-tag">#メモ</button>
-        <button class="helper-tag">#アーカイブ</button>
-        <button class="helper-tag">#未発表</button>
-        <button class="helper-tag">#既発表</button>
+        <button type="button" class="helper-tag">#作品</button>
+        <button type="button" class="helper-tag">#メモ</button>
+        <button type="button" class="helper-tag">#アーカイブ</button>
+        <button type="button" class="helper-tag">#未発表</button>
+        <button type="button" class="helper-tag">#既発表</button>
       </div>
     </div>
 
@@ -100,6 +104,18 @@
         <button id="btn-save-edit" class="btn-primary">保存</button>
       </div>
     </div>
+  </div>
+
+  <!-- 鑑賞モード（広げて読む） -->
+  <div id="panel-reader" class="panel panel-reader">
+    <div class="panel-header">
+      <h2 id="reader-title">鑑賞モード</h2>
+      <div class="panel-header-actions">
+        <button type="button" id="btn-reader-copy">コピー</button>
+        <button type="button" id="btn-close-reader">閉じる</button>
+      </div>
+    </div>
+    <div id="reader-content" class="reader-content"></div>
   </div>
 
   <!-- 左舷1枚目：表示パネル -->
@@ -195,7 +211,7 @@
     </section>
   </div>
 
- <!-- 右舷：データ管理パネル -->
+  <!-- 右舷：データ管理パネル -->
   <div id="panel-data" class="panel panel-wing">
     <div class="panel-header">
       <h2>データ管理</h2>
@@ -283,7 +299,9 @@
         <button id="btn-empty-trash" class="dm-btn primary">バックアップを作ってゴミ箱を空にする</button>
       </div>
     </section>
-  </div>  <!-- リスト棚パネル（フッター左から直行） -->
+  </div>
+
+  <!-- リスト棚パネル（フッター左から直行） -->
   <div id="panel-shelf" class="panel panel-wing">
     <div id="shelf-list-view">
       <div class="panel-header">
