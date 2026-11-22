@@ -1,4 +1,4 @@
-/** さいきよ2 - データ管理モジュール（初代完全互換インポート・共有バックアップ・一括削除） */
+/** さいきよ2 - データ管理モジュール（初代完全互換・論理削除・月イチ念押しバックアップ削除） */
 
 import {
   loadAllCards,
@@ -8,9 +8,18 @@ import {
   bulkSaveShelves
 } from './db.js';
 
+const TRASH_REMIND_KEY = 'saikiyo2_trash_last_remind';
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
 export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   const DOM = {
     stats: document.getElementById('data-stats'),
+    dmTrashStatus: document.getElementById('dm-trash-status'),
+    btnEmptyTrash: document.getElementById('btn-empty-trash'),
+    trashRemindBar: document.getElementById('trash-remind-bar'),
+    trashRemindText: document.getElementById('trash-remind-text'),
+    btnRemindEmpty: document.getElementById('btn-remind-empty'),
+    btnRemindLater: document.getElementById('btn-remind-later'),
     btnExportShare: document.getElementById('btn-export-share'),
     btnExportFile: document.getElementById('btn-export-file'),
     btnExportCopy: document.getElementById('btn-export-copy'),
@@ -26,7 +35,20 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
 
   async function updateStats() {
     const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
-    DOM.stats.textContent = `保存中：カード ${cards.length} 件 ／ リスト棚 ${shelves.length} 件`;
+    const activeCount = cards.filter(c => !c.deletedAt).length;
+    const trashCount = cards.length - activeCount;
+
+    DOM.stats.textContent = `保存中：カード ${activeCount} 件（ゴミ箱 ${trashCount} 件） ／ リスト棚 ${shelves.length} 件`;
+
+    if (DOM.dmTrashStatus && DOM.btnEmptyTrash) {
+      if (trashCount === 0) {
+        DOM.dmTrashStatus.textContent = '現在、ゴミ箱は空です。';
+        DOM.btnEmptyTrash.disabled = true;
+      } else {
+        DOM.dmTrashStatus.textContent = `ゴミ箱に ${trashCount} 件のカードがあります。完全削除の前に、ゴミ箱専用のバックアップ（.txt）を自動保存します。`;
+        DOM.btnEmptyTrash.disabled = false;
+      }
+    }
   }
 
   async function buildBackupPayload() {
@@ -40,11 +62,15 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     };
   }
 
-  function makeBackupFileName() {
+  function makeTimestampStr() {
     const d = new Date();
     const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
     const hm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
-    return `saikiyo2_backup_${ymd}_${hm}.txt`;
+    return `${ymd}_${hm}`;
+  }
+
+  function makeBackupFileName(prefix = 'saikiyo2_backup') {
+    return `${prefix}_${makeTimestampStr()}.txt`;
   }
 
   function downloadTextFile(jsonStr, fileName) {
@@ -59,7 +85,87 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     URL.revokeObjectURL(url);
   }
 
-  // 共有シートを立ち上げて .txt ファイルをメール等へ送る
+  // --- 月イチ念押しチェック ---
+  async function checkMonthlyTrashReminder() {
+    if (!DOM.trashRemindBar) return;
+    const cards = await loadAllCards();
+    const trashCards = cards.filter(c => Boolean(c.deletedAt));
+
+    if (trashCards.length === 0) {
+      DOM.trashRemindBar.style.display = 'none';
+      return;
+    }
+
+    const now = Date.now();
+    const oldestDeletedAt = Math.min(...trashCards.map(c => Number(c.deletedAt) || now));
+    const lastRemind = Number(localStorage.getItem(TRASH_REMIND_KEY)) || 0;
+
+    const hasOldTrash = (now - oldestDeletedAt) >= THIRTY_DAYS_MS;
+    const isCooldownPassed = (now - lastRemind) >= THIRTY_DAYS_MS;
+
+    if (hasOldTrash && isCooldownPassed) {
+      DOM.trashRemindText.textContent = `ゴミ箱に ${trashCards.length} 件たまっています。月イチの整理として、バックアップファイル（.txt）を作ってから完全に削除しますか？`;
+      DOM.trashRemindBar.style.display = 'flex';
+    } else {
+      DOM.trashRemindBar.style.display = 'none';
+    }
+  }
+
+  // バックアップを書き出してからゴミ箱を完全削除（念押し付き）
+  async function emptyTrashWithBackup() {
+    const cards = await loadAllCards();
+    const trashCards = cards.filter(c => Boolean(c.deletedAt));
+
+    if (trashCards.length === 0) {
+      alert('ゴミ箱は空です。');
+      return;
+    }
+
+    const trashPayload = {
+      app: 'saikiyo2',
+      version: 2,
+      type: 'trash_archive',
+      exportedAt: Date.now(),
+      cards: trashCards,
+      shelves: []
+    };
+
+    // 1. 先にゴミ箱分だけのバックアップを自動保存
+    const fileName = makeBackupFileName('saikiyo2_trash_backup');
+    downloadTextFile(JSON.stringify(trashPayload, null, 2), fileName);
+
+    // 2. 念押し確認のうえで物理削除
+    if (!confirm(`ゴミ箱の ${trashCards.length} 件をバックアップファイル（${fileName}）に保存しました。\n\nこのままゴミ箱から完全に削除しますか？（この操作は取り消せません）`)) {
+      return;
+    }
+
+    const deletedIdSet = new Set(trashCards.map(c => c.id));
+    await Promise.all(trashCards.map(c => deleteCard(c.id)));
+
+    localStorage.setItem(TRASH_REMIND_KEY, String(Date.now()));
+    if (DOM.trashRemindBar) DOM.trashRemindBar.style.display = 'none';
+
+    await onCardsDeleted(deletedIdSet);
+    await updateStats();
+    alert(`ゴミ箱の ${trashCards.length} 件を完全に削除しました。`);
+  }
+
+  if (DOM.btnEmptyTrash) {
+    DOM.btnEmptyTrash.addEventListener('click', emptyTrashWithBackup);
+  }
+
+  if (DOM.btnRemindEmpty) {
+    DOM.btnRemindEmpty.addEventListener('click', emptyTrashWithBackup);
+  }
+
+  if (DOM.btnRemindLater) {
+    DOM.btnRemindLater.addEventListener('click', () => {
+      localStorage.setItem(TRASH_REMIND_KEY, String(Date.now()));
+      DOM.trashRemindBar.style.display = 'none';
+    });
+  }
+
+  // --- 共有・ファイル保存・コピー ---
   if (DOM.btnExportShare) {
     DOM.btnExportShare.addEventListener('click', async () => {
       const payload = await buildBackupPayload();
@@ -85,7 +191,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
   }
 
-  // 通常の .txt ファイル保存
   DOM.btnExportFile.addEventListener('click', async () => {
     const payload = await buildBackupPayload();
     const jsonStr = JSON.stringify(payload, null, 2);
@@ -103,7 +208,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     }
   });
 
-  // タグ配列の正規化（初代の status / publish_status もタグへ引き継ぐ）
+  // --- 正規化＆初代互換インポート ---
   function normalizeTags(rawTags, status, publishStatus) {
     const tagSet = new Set();
 
@@ -119,7 +224,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       rawTags.trim().split(/\s+/).forEach(addTag);
     }
 
-    // 初代『さいきよ』固有フィールドの引き継ぎ
     if (status === 'アーカイブ') addTag('#アーカイブ');
     else if (status === '作品') addTag('#作品');
 
@@ -129,7 +233,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     return Array.from(tagSet);
   }
 
-  // 短歌カード正規化（初代・さいきよ2 共通）
   function normalizeCard(raw, fallbackOffset) {
     if (!raw || typeof raw !== 'object') return null;
     const content = typeof raw.content === 'string'
@@ -139,17 +242,18 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
 
     const idNum = Number(raw.id);
     const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
+    const deletedAtNum = raw.deletedAt ? Number(raw.deletedAt) : null;
 
     return {
       id,
       content,
       memo: typeof raw.memo === 'string' ? raw.memo : '',
       tags: normalizeTags(raw.tags, raw.status, raw.publish_status),
-      lastupdated: Number(raw.lastupdated) || id
+      lastupdated: Number(raw.lastupdated) || id,
+      deletedAt: (deletedAtNum && !Number.isNaN(deletedAtNum)) ? deletedAtNum : null
     };
   }
 
-  // 初代リスト（type === 'list'）をさいきよ2のリスト棚へ変換
   function convertLegacyListToShelf(rawList, cardLookupMap, fallbackOffset) {
     const idNum = Number(rawList.id);
     const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
@@ -194,7 +298,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     return { shelf, missingCount };
   }
 
-  // さいきよ2形式のリスト棚を正規化
   function normalizeV2Shelf(rawShelf, fallbackOffset) {
     if (!rawShelf || typeof rawShelf !== 'object' || !Array.isArray(rawShelf.items)) return null;
     const idNum = Number(rawShelf.id);
@@ -232,14 +335,12 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     const rawV2Shelves = [];
 
     if (Array.isArray(parsed)) {
-      // 初代『さいきよ』形式（短歌とリストが同じ配列に混在）
       parsed.forEach(entry => {
         if (!entry || typeof entry !== 'object') return;
         if (entry.type === 'list') rawLegacyLists.push(entry);
         else rawCardItems.push(entry);
       });
     } else if (parsed && typeof parsed === 'object') {
-      // さいきよ2形式（または互換オブジェクト形式）
       const sourceCards = Array.isArray(parsed.cards)
         ? parsed.cards
         : (Array.isArray(parsed.data) ? parsed.data : (Array.isArray(parsed.items) ? parsed.items : []));
@@ -255,14 +356,12 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       }
     }
 
-    // 1. 短歌カードを変換し、ID解決マップへ登録
     const cardsToImport = rawCardItems
       .map((c, idx) => normalizeCard(c, idx))
       .filter(Boolean);
 
     cardsToImport.forEach(c => cardLookupMap.set(c.id, c));
 
-    // 2. リスト棚を変換（さいきよ2形式 ＋ 初代リスト変換）
     const shelvesToImport = [];
     let legacyListCount = 0;
     let totalMissingRefs = 0;
@@ -286,11 +385,9 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       return;
     }
 
-    // 3. DBへ一括保存
     if (cardsToImport.length > 0) await bulkSaveCards(cardsToImport);
     if (shelvesToImport.length > 0) await bulkSaveShelves(shelvesToImport);
 
-    // 4. もし以前に初代リストが誤ってカード側へ入っていた場合、重複の残骸を掃除
     const pollutedCardIds = existingCards
       .filter(c => legacyListIds.has(c.id))
       .map(c => c.id);
@@ -302,6 +399,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
 
     await onDataChanged();
     await updateStats();
+    await checkMonthlyTrashReminder();
 
     let summary = `復元が完了しました。\n・カード：${cardsToImport.length} 件\n・リスト棚：${shelvesToImport.length} 件`;
     if (legacyListCount > 0) {
@@ -335,6 +433,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     DOM.inputImportText.value = '';
   });
 
+  // --- 一括整理（論理削除：ゴミ箱へ移動） ---
   document.querySelectorAll('.dm-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       DOM.inputCleanTag.value = btn.dataset.tag;
@@ -344,28 +443,29 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   DOM.btnCleanTag.addEventListener('click', async () => {
     const rawTag = DOM.inputCleanTag.value.trim();
     if (!rawTag) {
-      alert('削除するタグを入力してください。');
+      alert('対象タグを入力してください。');
       return;
     }
     const targetTag = rawTag.startsWith('#') ? rawTag : '#' + rawTag;
     const allCards = await loadAllCards();
-    const targets = allCards.filter(c => Array.isArray(c.tags) && c.tags.includes(targetTag));
+    const targets = allCards.filter(c => !c.deletedAt && Array.isArray(c.tags) && c.tags.includes(targetTag));
 
     if (targets.length === 0) {
-      alert(`タグ「${targetTag}」が付いたカードは 0 件です。`);
+      alert(`タグ「${targetTag}」が付いた通常カードは 0 件です。`);
       return;
     }
 
-    if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件を一括削除しますか？\n※この操作は取り消せません。事前にバックアップを取ることをおすすめします。`)) {
+    if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件をゴミ箱へ移動しますか？\n※ゴミ箱からいつでも元に戻せます。`)) {
       return;
     }
 
-    const targetIdSet = new Set(targets.map(c => c.id));
-    await Promise.all(targets.map(c => deleteCard(c.id)));
+    const now = Date.now();
+    const updated = targets.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
+    await bulkSaveCards(updated);
 
-    await onCardsDeleted(targetIdSet);
+    await onCardsDeleted(new Set(targets.map(c => c.id)));
     await updateStats();
-    alert(`${targets.length} 件のカードを削除しました。`);
+    alert(`${targets.length} 件のカードをゴミ箱へ移動しました。`);
   });
 
   DOM.btnCleanDate.addEventListener('click', async () => {
@@ -378,26 +478,28 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     if (Number.isNaN(cutoffTs)) return;
 
     const allCards = await loadAllCards();
-    const targets = allCards.filter(c => c.id < cutoffTs);
+    const targets = allCards.filter(c => !c.deletedAt && c.id < cutoffTs);
 
     if (targets.length === 0) {
-      alert(`${dateVal} より前のカードは 0 件です。`);
+      alert(`${dateVal} より前の通常カードは 0 件です。`);
       return;
     }
 
-    if (!confirm(`${dateVal} より前に作成されたカード ${targets.length} 件を一括削除しますか？\n※この操作は取り消せません。`)) {
+    if (!confirm(`${dateVal} より前に作成されたカード ${targets.length} 件をゴミ箱へ移動しますか？\n※ゴミ箱からいつでも元に戻せます。`)) {
       return;
     }
 
-    const targetIdSet = new Set(targets.map(c => c.id));
-    await Promise.all(targets.map(c => deleteCard(c.id)));
+    const now = Date.now();
+    const updated = targets.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
+    await bulkSaveCards(updated);
 
-    await onCardsDeleted(targetIdSet);
+    await onCardsDeleted(new Set(targets.map(c => c.id)));
     await updateStats();
-    alert(`${targets.length} 件のカードを削除しました。`);
+    alert(`${targets.length} 件のカードをゴミ箱へ移動しました。`);
   });
 
   return {
-    updateStats
+    updateStats,
+    checkMonthlyTrashReminder
   };
 }
