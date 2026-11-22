@@ -37,8 +37,12 @@ header button {
   background: none; border: none; color: var(--text-color);
   font-size: var(--font-base); cursor: pointer; padding: 6px 4px;
 }
+.header-right-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
 .header-wing-btn {
-  min-width: 52px;
   font-weight: bold;
 }
 #btn-left-wing { text-align: left; }
@@ -47,7 +51,11 @@ header button {
   text-decoration: underline;
   text-underline-offset: 4px;
 }
-#btn-top { font-weight: bold; font-size: var(--font-base); cursor: pointer; }
+#btn-top {
+  font-weight: bold;
+  font-size: var(--font-base);
+  cursor: pointer;
+}
 
 #timeline {
   flex: 1;
@@ -131,9 +139,12 @@ header button {
 .footer-right { display: flex; gap: 15px; align-items: center; }
 #footer-bar button {
   background: none; border: none; color: var(--text-color);
-  font-size: var(--font-base); cursor: pointer; padding: 0; font-weight: bold;
+  font-size: var(--font-base); cursor: pointer; padding: 4px 6px; font-weight: bold;
 }
-.footer-title { font-weight: bold; font-size: var(--font-base); cursor: pointer; }
+.footer-shelf-btn {
+  min-width: 56px;
+  text-align: left;
+}
 #footer-selection button {
   font-size: var(--font-base); padding: 6px 12px;
   background: var(--text-color); color: var(--bg-color); border-radius: 0;
@@ -316,6 +327,116 @@ header button {
   color: var(--bg-color);
   border: 1px solid var(--text-color);
   margin: 0; 
+}
+
+/* --- 管制パネル --- */
+.kansei-stats {
+  background: var(--header-bg);
+  border: 1px solid var(--text-color);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 18px;
+}
+.kansei-section {
+  border-bottom: 1px solid #CCC;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+}
+.kansei-section:last-child {
+  border-bottom: none;
+}
+.kansei-section h3 {
+  margin: 0 0 8px 0;
+  font-size: var(--font-base);
+}
+.kansei-desc {
+  margin: 0 0 10px 0;
+  font-size: var(--font-small);
+  color: #555;
+  line-height: 1.5;
+}
+.kansei-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.kansei-btn {
+  height: 44px;
+  padding: 0 12px;
+  font-size: 0.95rem;
+  font-weight: bold;
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  cursor: pointer;
+  flex: 1;
+  box-sizing: border-box;
+}
+.kansei-btn.primary {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
+.kansei-btn.secondary {
+  background: var(--header-bg);
+  color: var(--text-color);
+}
+.kansei-btn.danger {
+  background: var(--bg-color);
+  color: var(--text-color);
+  flex: 0 0 84px;
+}
+.kansei-btn.full-width {
+  width: 100%;
+  flex: none;
+}
+.kansei-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-family: monospace;
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  resize: vertical;
+}
+.kansei-clean-block {
+  margin-bottom: 14px;
+}
+.kansei-clean-block label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+.kansei-clean-row {
+  display: flex;
+  gap: 8px;
+}
+.kansei-input {
+  flex: 1;
+  height: 44px;
+  padding: 0 10px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #FFF;
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  box-sizing: border-box;
+}
+.kansei-tag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.kansei-chip {
+  background: var(--header-bg);
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
 }
 
 /* --- リスト棚パネル（イフリート21式） --- */
