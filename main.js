@@ -1,4 +1,4 @@
-/** さいきよ2 - 統合ロジック（左右トグル導線・リスト棚・完全スナップショット返却対応） */
+/** さいきよ2 - 統合ロジック（第1陣：編集パネル棚送り・作成日格上げ・誤タップ対策反映） */
 
 import {
   initDB,
@@ -7,6 +7,7 @@ import {
   getCard,
   bulkSaveCards,
   deleteCard,
+  saveShelf,
   loadAllShelves,
   getShelf,
   bulkSaveShelves,
@@ -43,6 +44,7 @@ const DOM = {
   btnSend: document.getElementById('btn-send'),
   panelEdit: document.getElementById('panel-edit'),
   btnCloseEdit: document.getElementById('btn-close-edit'),
+  editTimestampGroup: document.getElementById('edit-timestamp-group'),
   editTimestamp: document.getElementById('edit-timestamp'),
   editContentView: document.getElementById('edit-content-view'),
   editMemo: document.getElementById('edit-memo'),
@@ -50,6 +52,7 @@ const DOM = {
   btnSaveEdit: document.getElementById('btn-save-edit'),
   btnDeleteEdit: document.getElementById('btn-delete-edit'),
   btnCopyEdit: document.getElementById('btn-copy-edit'),
+  btnShelfEdit: document.getElementById('btn-shelf-edit'),
   // 左右ウィングパネル
   panelDisplay: document.getElementById('panel-display'),
   panelConfig: document.getElementById('panel-config'),
@@ -79,11 +82,7 @@ const wingPanels = {
 };
 
 function updateHeaderWingButtons() {
-  // 左舷ボタン表示：表示パネル中は「設定」へ待機、それ以外は「表示」
-  if (state.activeWing === 'display') {
-    DOM.btnLeftWing.textContent = '設定';
-    DOM.btnLeftWing.classList.add('is-active');
-  } else if (state.activeWing === 'config') {
+  if (state.activeWing === 'display' || state.activeWing === 'config') {
     DOM.btnLeftWing.textContent = '設定';
     DOM.btnLeftWing.classList.add('is-active');
   } else {
@@ -91,11 +90,7 @@ function updateHeaderWingButtons() {
     DOM.btnLeftWing.classList.remove('is-active');
   }
 
-  // 右舷ボタン表示：管制パネル中は「棚」へ待機、それ以外は「管制」
-  if (state.activeWing === 'kansei') {
-    DOM.btnRightWing.textContent = '棚';
-    DOM.btnRightWing.classList.add('is-active');
-  } else if (state.activeWing === 'shelf') {
+  if (state.activeWing === 'kansei' || state.activeWing === 'shelf') {
     DOM.btnRightWing.textContent = '棚';
     DOM.btnRightWing.classList.add('is-active');
   } else {
@@ -265,15 +260,12 @@ DOM.btnSearch.addEventListener('click', async () => {
 // --- プロパティ編集パネル ---
 function openEditPanel(card) {
   state.editingCardId = card.id;
+  DOM.editTimestampGroup.style.display = 'flex';
   DOM.editTimestamp.textContent = formatDateWithWeekday(card.id);
-  DOM.editTimestamp.style.display = 'block';
   DOM.editContentView.innerText = card.content;
   DOM.editMemo.disabled = false;
   DOM.editMemo.value = card.memo || "";
   DOM.editTags.value = card.tags && Array.isArray(card.tags) ? card.tags.join(' ') : "";
-
-  DOM.btnDeleteEdit.style.display = '';
-  DOM.btnCopyEdit.style.display = '';
 
   DOM.panelEdit.classList.add('active');
 }
@@ -292,15 +284,12 @@ document.querySelectorAll('.helper-tag').forEach(btn => {
 DOM.btnBatchEdit.addEventListener('click', () => {
   if (state.selectedIds.size === 0) return;
   state.editingCardId = 'batch';
+  DOM.editTimestampGroup.style.display = 'none';
   DOM.editTimestamp.textContent = '';
-  DOM.editTimestamp.style.display = 'none';
   DOM.editContentView.innerText = `【一括編集モード】\n選択された ${state.selectedIds.size} 件のカードを処理します。`;
   DOM.editMemo.value = "※一括編集ではメタメモは変更できません";
   DOM.editMemo.disabled = true;
   DOM.editTags.value = "";
-
-  DOM.btnDeleteEdit.style.display = '';
-  DOM.btnCopyEdit.style.display = '';
 
   DOM.panelEdit.classList.add('active');
 });
@@ -353,6 +342,66 @@ DOM.btnCopyEdit.addEventListener('click', async () => {
     alert('コピー完了ロボ！');
   } catch (err) {
     alert('コピーに失敗したロボ...');
+  }
+});
+
+// 編集パネルから棚に収める（1首／一括 共通）
+DOM.btnShelfEdit.addEventListener('click', async () => {
+  const now = Date.now();
+  const inputTags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+
+  if (state.editingCardId === 'batch') {
+    const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
+    if (cards.length === 0) return;
+
+    const firstClean = cards[0].content.replace(/\s+/g, '');
+    const title = firstClean.slice(0, 5) || '無題';
+    const items = cards.map(c => ({
+      id: c.id,
+      content: c.content,
+      memo: c.memo || '',
+      tags: Array.isArray(c.tags) ? [...c.tags] : [],
+      lastupdated: c.lastupdated || c.id
+    }));
+
+    const shelf = {
+      id: now,
+      title,
+      memo: '',
+      tags: inputTags,
+      items,
+      order: now,
+      lastupdated: now
+    };
+    await saveShelf(shelf);
+    alert('棚に収めたロボ！');
+  } else {
+    const card = await getCard(state.editingCardId);
+    if (!card) return;
+
+    const firstClean = card.content.replace(/\s+/g, '');
+    const title = firstClean.slice(0, 5) || '無題';
+    const currentMemo = DOM.editMemo.value;
+
+    const snapshot = {
+      id: card.id,
+      content: card.content,
+      memo: currentMemo,
+      tags: inputTags,
+      lastupdated: card.lastupdated || card.id
+    };
+
+    const shelf = {
+      id: now,
+      title,
+      memo: currentMemo,
+      tags: inputTags,
+      items: [snapshot],
+      order: now,
+      lastupdated: now
+    };
+    await saveShelf(shelf);
+    alert('棚に収めたロボ！');
   }
 });
 
@@ -421,7 +470,6 @@ async function renderShelfList() {
     return;
   }
 
-  // order昇順（未設定ならid昇順）
   shelves.sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
 
   shelves.forEach(shelf => {
@@ -429,7 +477,6 @@ async function renderShelfList() {
     row.className = 'shelf-row';
     row.dataset.id = shelf.id;
 
-    // 左：チェックボックス
     const chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.className = 'card-check';
@@ -440,7 +487,6 @@ async function renderShelfList() {
       updateShelfBulkDeleteBtn();
     });
 
-    // 中央：タイトル・メタ情報（タップで詳細へ）
     const main = document.createElement('div');
     main.className = 'shelf-row-main';
     const titleEl = document.createElement('div');
@@ -458,7 +504,6 @@ async function renderShelfList() {
     main.appendChild(metaEl);
     main.addEventListener('click', () => openShelfDetail(shelf.id));
 
-    // 右：並べ替えハンドル＆削除ボタン
     const controls = document.createElement('div');
     controls.className = 'shelf-row-controls';
 
@@ -491,7 +536,6 @@ async function renderShelfList() {
   updateShelfBulkDeleteBtn();
 }
 
-// 棚のD&D並べ替え
 let draggingShelfRow = null;
 
 function startShelfDrag(e, row) {
@@ -534,7 +578,6 @@ async function onShelfDragEnd() {
   document.removeEventListener('pointerup', onShelfDragEnd);
   document.removeEventListener('pointercancel', onShelfDragEnd);
 
-  // 並び順をDBへ保存
   const ids = Array.from(DOM.shelfList.querySelectorAll('.shelf-row')).map(el => Number(el.dataset.id));
   const shelves = (await Promise.all(ids.map(id => getShelf(id)))).filter(Boolean);
   shelves.forEach((shelf, idx) => {
@@ -553,7 +596,6 @@ DOM.btnShelfBulkDelete.addEventListener('click', async () => {
   await renderShelfList();
 });
 
-// 棚の詳細表示
 async function openShelfDetail(shelfId) {
   const shelf = await getShelf(shelfId);
   if (!shelf) return;
@@ -613,7 +655,6 @@ DOM.btnShelfCopy.addEventListener('click', async () => {
   }
 });
 
-// バラでTLへ戻す（原本は触らず新しいID・現在時刻で新規発行）
 DOM.btnShelfReturnScatter.addEventListener('click', async () => {
   if (!state.currentDetailShelfId) return;
   const shelf = await getShelf(state.currentDetailShelfId);
@@ -637,7 +678,6 @@ DOM.btnShelfReturnScatter.addEventListener('click', async () => {
   alert(`${newCards.length}首をバラでタイムライン直近へ戻したロボ！`);
 });
 
-// 塊でTLへ戻す（全首を1行空けで結合した1枚の新規カードとして発行）
 DOM.btnShelfReturnBlock.addEventListener('click', async () => {
   if (!state.currentDetailShelfId) return;
   const shelf = await getShelf(state.currentDetailShelfId);
@@ -667,7 +707,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   await renderTimeline();
   adjustTimelinePadding();
 
-  // 工房からの「棚に進む」パラメータ検知
   const params = new URLSearchParams(window.location.search);
   if (params.get('open') === 'shelf') {
     await openWing('shelf');
