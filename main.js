@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（スマートスクロール・ギアチェンジ式検索・選択ドック・一括タグ差分更新・論理削除対応） */
+/** さいきよ2 - メイン司令塔（スクロール位置記憶・日付ジャンプ・ギアチェンジ式検索・選択ドック・論理削除・設定モジュール連携） */
 
 import {
   initDB,
@@ -13,15 +13,9 @@ import { createTankaCard, updateSelectionBarUI, formatDateWithWeekday } from './
 import { initShelfModule } from './shelf.js';
 import { initDataManagerModule } from './dataManager.js';
 import { initSearchModule } from './search.js';
+import { initSettingsModule } from './settings.js';
 
-const CONFIG_KEY = 'saikiyo2_config';
-
-let config = {
-  theme: 'kinari',   // 'kinari' | 'ginnezumi' | 'sumi'
-  size: 'medium',    // 'small' | 'medium' | 'large'
-  font: 'gothic',    // 'gothic' | 'mincho'
-  radius: 'none'     // 'none' | 'soft'
-};
+const SCROLL_POS_KEY = 'saikiyo2_scroll_pos';
 
 let state = {
   viewScope: 'active',       // 'active' | 'trash'
@@ -96,10 +90,13 @@ const DOM = {
   btnScopeTrash: document.getElementById('btn-scope-trash'),
   displayTagList: document.getElementById('display-tag-list'),
   filterDateFrom: document.getElementById('filter-date-from'),
-  filterDateTo: document.getElementById('filter-date-to')
+  filterDateTo: document.getElementById('filter-date-to'),
+  dateJumpInput: document.getElementById('date-jump-input'),
+  btnDateJump: document.getElementById('btn-date-jump'),
+  btnJumpLatest: document.getElementById('btn-jump-latest')
 };
 
-// --- スマートスクロール判定 ---
+// --- スマートスクロール判定＆位置記憶 ---
 function isTimelineAtLatest() {
   if (state.sortOrder === 'desc') {
     return DOM.timeline.scrollTop <= 40;
@@ -107,7 +104,20 @@ function isTimelineAtLatest() {
   return (DOM.timeline.scrollHeight - DOM.timeline.scrollTop) <= (DOM.timeline.clientHeight + 40);
 }
 
+let scrollSaveTimer = null;
+DOM.timeline.addEventListener('scroll', () => {
+  if (state.viewScope !== 'active' || hasActiveFilter()) return;
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(SCROLL_POS_KEY, String(DOM.timeline.scrollTop));
+    } catch (_) {}
+  }, 120);
+});
+
 // --- サブモジュール初期化 ---
+const settingsModule = initSettingsModule();
+
 const shelfModule = initShelfModule({
   onTimelineUpdated: () => renderTimeline({ forceBottom: true }),
   onCloseWings: closeAllWings
@@ -132,54 +142,6 @@ const searchModule = initSearchModule({
     await renderTimeline(opts);
     updateHeaderWingButtons();
   }
-});
-
-// --- 設定（コンフィグ） ---
-function loadConfig() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
-    if (saved) config = { ...config, ...saved };
-  } catch (_) {}
-  applyConfig();
-}
-
-function saveConfig() {
-  try {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-  } catch (_) {}
-}
-
-function applyConfig() {
-  document.body.dataset.theme = config.theme;
-  document.body.dataset.size = config.size;
-  document.body.dataset.font = config.font;
-  document.body.dataset.radius = config.radius;
-
-  document.querySelectorAll('[data-config-theme]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.configTheme === config.theme);
-  });
-  document.querySelectorAll('[data-config-size]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.configSize === config.size);
-  });
-  document.querySelectorAll('[data-config-font]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.configFont === config.font);
-  });
-  document.querySelectorAll('[data-config-radius]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.configRadius === config.radius);
-  });
-}
-
-document.querySelectorAll('[data-config-theme]').forEach(btn => {
-  btn.addEventListener('click', () => { config.theme = btn.dataset.configTheme; applyConfig(); saveConfig(); });
-});
-document.querySelectorAll('[data-config-size]').forEach(btn => {
-  btn.addEventListener('click', () => { config.size = btn.dataset.configSize; applyConfig(); saveConfig(); });
-});
-document.querySelectorAll('[data-config-font]').forEach(btn => {
-  btn.addEventListener('click', () => { config.font = btn.dataset.configFont; applyConfig(); saveConfig(); });
-});
-document.querySelectorAll('[data-config-radius]').forEach(btn => {
-  btn.addEventListener('click', () => { config.radius = btn.dataset.configRadius; applyConfig(); saveConfig(); });
 });
 
 // --- ウィングパネル制御 ---
@@ -271,6 +233,44 @@ DOM.btnTop.addEventListener('click', () => {
   const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
   DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
 });
+
+// --- 日付ジャンプ（タイムマシン） ---
+if (DOM.btnDateJump) {
+  DOM.btnDateJump.addEventListener('click', () => {
+    const val = DOM.dateJumpInput ? DOM.dateJumpInput.value : '';
+    if (!val) {
+      alert('移動したい日付を指定してください。');
+      return;
+    }
+
+    const cards = Array.from(DOM.timeline.querySelectorAll('.card'));
+    let targetEl = null;
+
+    if (state.sortOrder === 'asc') {
+      const targetTs = new Date(`${val}T00:00:00`).getTime();
+      targetEl = cards.find(el => Number(el.dataset.id) >= targetTs);
+    } else {
+      const targetTs = new Date(`${val}T23:59:59.999`).getTime();
+      targetEl = cards.find(el => Number(el.dataset.id) <= targetTs);
+    }
+
+    if (!targetEl) {
+      alert('指定した日付付近に該当するカードがありません。');
+      return;
+    }
+
+    closeAllWings();
+    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+if (DOM.btnJumpLatest) {
+  DOM.btnJumpLatest.addEventListener('click', () => {
+    closeAllWings();
+    const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+    DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
+  });
+}
 
 // --- 表示パネル（対象切替・絞り込み・並び順・メモ表示） ---
 function filterByScope(allCards) {
@@ -442,7 +442,7 @@ document.querySelectorAll('[data-memo-mode]').forEach(btn => {
   });
 });
 
-// --- コンソール＆タイムライン（スマート追従：過去作閲覧中は絶対に動かさない） ---
+// --- コンソール＆タイムライン（スマート追従：過去作閲覧中は動かさない） ---
 function adjustTimelinePadding({ allowAutoScroll = true } = {}) {
   const wasAtLatest = isTimelineAtLatest();
   const isConsoleOpen = DOM.consoleArea.classList.contains('open');
@@ -532,7 +532,6 @@ async function getSelectedCardsOrdered() {
   return cards;
 }
 
-// ドック：全選択
 DOM.btnSelectAll.addEventListener('click', () => {
   const cardEls = DOM.timeline.querySelectorAll('.card');
   cardEls.forEach(el => {
@@ -546,14 +545,12 @@ DOM.btnSelectAll.addEventListener('click', () => {
   updateSelectionBar();
 });
 
-// ドック：取消
 DOM.btnCancelSelection.addEventListener('click', () => {
   state.selectedIds.clear();
   DOM.timeline.querySelectorAll('.card-check').forEach(chk => { chk.checked = false; });
   updateSelectionBar();
 });
 
-// ドック：広げて読む
 DOM.btnDockReader.addEventListener('click', async () => {
   if (state.selectedIds.size === 0) return;
   const cards = await getSelectedCardsOrdered();
@@ -580,7 +577,6 @@ DOM.btnSend.addEventListener('click', async () => {
   }
   updateHeaderWingButtons();
 
-  // 推敲固定中は上の元歌を見失わないようスマート追従（通常投稿は最新へ）
   await renderTimeline({ forceBottom: searchResult !== 'added_suiko' });
 });
 
@@ -872,12 +868,20 @@ DOM.btnToDesk.addEventListener('click', () => {
 
 // --- 起動処理 ---
 window.addEventListener('DOMContentLoaded', async () => {
-  loadConfig();
+  settingsModule.load();
   await initDB();
+  adjustTimelinePadding({ allowAutoScroll: false });
   await renderTimeline({ forceBottom: true });
+
+  // 前回のスクロール位置を復元（未保存ならそのまま最新位置）
+  const savedScroll = localStorage.getItem(SCROLL_POS_KEY);
+  if (savedScroll !== null) {
+    const pos = parseInt(savedScroll, 10);
+    if (!Number.isNaN(pos)) DOM.timeline.scrollTop = pos;
+  }
+
   await shelfModule.updateBadge();
   updateHeaderWingButtons();
-  adjustTimelinePadding({ allowAutoScroll: true });
   await dataManagerModule.checkMonthlyTrashReminder();
 
   const params = new URLSearchParams(window.location.search);
