@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（選択ドック・一括タグ差分更新・鑑賞モード・論理削除/ゴミ箱対応） */
+/** さいきよ2 - メイン司令塔（ギアチェンジ式検索・選択ドック・一括タグ差分更新・論理削除対応） */
 
 import {
   initDB,
@@ -12,6 +12,7 @@ import {
 import { createTankaCard, updateSelectionBarUI, formatDateWithWeekday } from './ui.js';
 import { initShelfModule } from './shelf.js';
 import { initDataManagerModule } from './dataManager.js';
+import { initSearchModule } from './search.js';
 
 const CONFIG_KEY = 'saikiyo2_config';
 
@@ -24,13 +25,13 @@ let config = {
 
 let state = {
   viewScope: 'active',       // 'active' | 'trash'
-  searchKeyword: '',
   filterTags: new Set(),     // タグ名 または '__NO_TAG__'
   filterDateFrom: '',
   filterDateTo: '',
   sortOrder: 'asc',          // 'asc' | 'desc'
   memoMode: 'badge',         // 'badge' | 'full'
   selectedIds: new Set(),
+  lastRenderedIds: [],
   editingCardId: null,
   batchOriginalTags: new Set(),
   activeWing: null           // null | 'display' | 'config' | 'data' | 'shelf'
@@ -116,6 +117,15 @@ const dataManagerModule = initDataManagerModule({
   }
 });
 
+const searchModule = initSearchModule({
+  getVisibleCardIds: () => state.lastRenderedIds,
+  onClearInputs: adjustTimelinePadding,
+  onSearchStateChanged: async () => {
+    await renderTimeline();
+    updateHeaderWingButtons();
+  }
+});
+
 // --- 設定（コンフィグ） ---
 function loadConfig() {
   try {
@@ -174,7 +184,7 @@ const wingPanels = {
 
 function hasActiveFilter() {
   return Boolean(
-    state.searchKeyword ||
+    searchModule.isActive() ||
     state.filterTags.size > 0 ||
     state.filterDateFrom ||
     state.filterDateTo
@@ -264,15 +274,6 @@ function filterByScope(allCards) {
 function filterCards(allCards) {
   let result = filterByScope(allCards);
 
-  if (state.searchKeyword) {
-    const kw = state.searchKeyword;
-    result = result.filter(c =>
-      c.content.includes(kw) ||
-      (c.memo && c.memo.includes(kw)) ||
-      (Array.isArray(c.tags) && c.tags.some(t => t.includes(kw)))
-    );
-  }
-
   if (state.filterTags.size > 0) {
     result = result.filter(c => {
       const cardTags = Array.isArray(c.tags) ? c.tags : [];
@@ -297,6 +298,7 @@ function filterCards(allCards) {
     if (!Number.isNaN(toTs)) result = result.filter(c => c.id <= toTs);
   }
 
+  result = searchModule.filterCards(result);
   return result;
 }
 
@@ -315,8 +317,8 @@ async function renderDisplayPanel() {
 
   const scopeLabel = state.viewScope === 'trash' ? 'ゴミ箱' : '通常';
   if (hasActiveFilter()) {
-    const kwNote = state.searchKeyword ? `（検索: ${state.searchKeyword}）` : '';
-    DOM.displayStatus.textContent = `${scopeLabel}を絞り込み中：${filtered.length} / ${scopedCards.length} 件${kwNote}`;
+    const searchNote = searchModule.isActive() ? `（${searchModule.getStatusLabel()}）` : '';
+    DOM.displayStatus.textContent = `${scopeLabel}を絞り込み中：${filtered.length} / ${scopedCards.length} 件${searchNote}`;
   } else {
     DOM.displayStatus.textContent = `${scopeLabel}を全件表示中：${scopedCards.length} 件`;
   }
@@ -392,13 +394,12 @@ document.querySelectorAll('[data-scope]').forEach(btn => {
 
 DOM.btnDisplayReset.addEventListener('click', async () => {
   state.viewScope = 'active';
-  state.searchKeyword = '';
   state.filterTags.clear();
   state.filterDateFrom = '';
   state.filterDateTo = '';
   state.selectedIds.clear();
   updateSelectionBar();
-  await renderTimeline();
+  searchModule.reset({ clearInputs: true });
   await renderDisplayPanel();
   updateHeaderWingButtons();
 });
@@ -487,6 +488,7 @@ async function renderTimeline() {
 
   const displayCards = filterCards(allCards);
   displayCards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
+  state.lastRenderedIds = displayCards.map(c => c.id);
 
   const showMemoFull = state.memoMode === 'full';
   displayCards.forEach(card => {
@@ -495,6 +497,7 @@ async function renderTimeline() {
     DOM.timeline.appendChild(cardElement);
   });
 
+  searchModule.updateUI(displayCards.length);
   DOM.timeline.scrollTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
 }
 
@@ -502,14 +505,13 @@ function updateSelectionBar() {
   updateSelectionBarUI(state.selectedIds.size, DOM);
 }
 
-// 選択中のカードをタイムライン順で取得
 async function getSelectedCardsOrdered() {
   const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
   cards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
   return cards;
 }
 
-// ドック：全選択（表示中のカードをすべて選択、スクロール位置維持）
+// ドック：全選択
 DOM.btnSelectAll.addEventListener('click', () => {
   const cardEls = DOM.timeline.querySelectorAll('.card');
   cardEls.forEach(el => {
@@ -523,7 +525,7 @@ DOM.btnSelectAll.addEventListener('click', () => {
   updateSelectionBar();
 });
 
-// ドック：取消（スクロール位置維持）
+// ドック：取消
 DOM.btnCancelSelection.addEventListener('click', () => {
   state.selectedIds.clear();
   DOM.timeline.querySelectorAll('.card-check').forEach(chk => { chk.checked = false; });
@@ -548,18 +550,15 @@ DOM.btnSend.addEventListener('click', async () => {
 
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
+  adjustTimelinePadding();
+
+  searchModule.handleCardCreated(now);
+
   if (state.viewScope === 'trash') {
     state.viewScope = 'active';
-    updateHeaderWingButtons();
   }
-  await renderTimeline();
-});
-
-DOM.btnSearch.addEventListener('click', async () => {
-  state.searchKeyword = DOM.inputContent.value.trim();
-  await renderTimeline();
   updateHeaderWingButtons();
-  if (DOM.consoleArea.classList.contains('open')) history.back();
+  await renderTimeline();
 });
 
 // --- 鑑賞モード（広げて読む） ---
@@ -633,7 +632,6 @@ document.querySelectorAll('.helper-tag').forEach(btn => {
   });
 });
 
-// 一括編集：タグの和集合を初期表示し、保存時に差分更新
 DOM.btnBatchEdit.addEventListener('click', async () => {
   if (state.selectedIds.size === 0) return;
   const cards = await getSelectedCardsOrdered();
@@ -712,7 +710,6 @@ DOM.btnSaveEdit.addEventListener('click', async () => {
   DOM.editMemo.disabled = false;
 });
 
-// ゴミ箱から戻す（論理削除の解除）
 DOM.btnRestoreEdit.addEventListener('click', async () => {
   const now = Date.now();
 
@@ -801,7 +798,6 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
   alert('棚に収めました。');
 });
 
-// 削除ボタン：通常時は論理削除（ゴミ箱移動）、ゴミ箱表示中は物理削除
 DOM.btnDeleteEdit.addEventListener('click', async () => {
   const now = Date.now();
   const isTrashMode = state.editingCardId === 'batch'
