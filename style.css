@@ -779,3 +779,35 @@ header button {
   background: var(--text-color);
   color: var(--bg-color);
 }
+/* --- データ管理パネル追加スタイル（一括取り込み・期間指定） --- */
+.dm-textarea-prose {
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.dm-full-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.dm-range-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.dm-range-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dm-range-row label {
+  width: 36px;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+.dm-btn.danger-flex {
+  background: var(--bg-color);
+  color: var(--text-color);
+  flex: 1;
+}
