@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
+<title>れんさく（単体版）</title>
+<style>
+  :root {
+    --bg-color: #FDFBF6;
+    --text-color: #1A1A1A;
+    --header-bg: #EAE6DF;
+    --primary: #2C7C73;
+    --muted-color: #666666;
+  }
+
+  html, body {
+    margin: 0; padding: 0; height: 100dvh; overflow: hidden;
+    font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color);
+    overscroll-behavior: none;
+  }
+
+  /* 横書き並べ替え時のみ：内枠の閉じ込めを外してページ全体へ伸ばす */
+  html.mode-page-scroll,
+  html.mode-page-scroll body {
+    height: auto;
+    min-height: 100dvh;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #app-container {
+    display: flex; flex-direction: column; height: 100%; max-width: 800px; margin: 0 auto;
+  }
+  html.mode-page-scroll #app-container {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .screen {
+    display: none; padding: 15px; flex-direction: column; gap: 12px; flex: 1;
+    box-sizing: border-box; overflow: hidden;
+  }
+  .screen.active { display: flex; }
+
+  html.mode-page-scroll #screen-sort {
+    flex: none;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .top-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 2px solid var(--text-color); padding-bottom: 8px; flex-shrink: 0;
+  }
+  .top-header h1 {
+    margin: 0; font-size: 1.1rem;
+  }
+  .header-links {
+    display: flex; gap: 12px; align-items: center;
+  }
+  .header-link-btn {
+    background: none; border: none; color: var(--text-color);
+    font-size: 0.9rem; font-weight: bold; cursor: pointer; padding: 4px;
+    text-decoration: none;
+  }
+
+  /* 入力画面 */
+  #input-text {
+    width: 100%; padding: 12px; font-size: 16px; line-height: 1.6;
+    font-family: inherit; color: var(--text-color); background: #FFF;
+    border: 1px solid var(--text-color); border-radius: 0;
+    box-sizing: border-box; resize: none; flex: 1;
+  }
+  .input-hint {
+    font-size: 0.8rem; color: var(--muted-color); flex-shrink: 0;
+  }
+
+  /* 上部ツールバー（3トグル） */
+  .toolbar {
+    display: flex; gap: 8px; flex-shrink: 0;
+  }
+  .toggle-btn {
+    flex: 1; padding: 10px 6px; font-size: 0.9rem; font-weight: bold;
+    background: var(--header-bg); color: var(--text-color);
+    border: 1px solid var(--text-color); border-radius: 0; cursor: pointer;
+    text-align: center;
+  }
+  .toggle-btn:active { opacity: 0.7; }
+
+  /* ソートエリア */
+  .sort-wrapper {
+    position: relative; flex: 1; overflow: hidden;
+    border: 1px solid #CCC; background: var(--header-bg);
+  }
+  html.mode-page-scroll .sort-wrapper {
+    flex: none;
+    overflow: visible;
+    height: auto;
+  }
+
+  #sort-area {
+    display: flex; gap: 10px; padding: 12px; box-sizing: border-box;
+    width: 100%; height: 100%;
+    scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: none;
+    overflow-anchor: none;
+  }
+  #sort-area::-webkit-scrollbar { display: none; }
+
+  html.mode-page-scroll #sort-area.dir-horizontal {
+    height: auto;
+    overflow: visible;
+  }
+
+  #custom-scrollbar {
+    position: absolute; pointer-events: none; z-index: 100; display: none;
+  }
+  #custom-thumb {
+    background-color: var(--primary); border-radius: 4px; position: absolute;
+    border: 1px solid rgba(255,255,255,0.5); box-sizing: border-box;
+  }
+
+  /* 短冊 */
+  .tanzaku {
+    background-color: #FFF; border: 1px solid #666;
+    padding: 10px; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation; transition: none !important;
+    display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+    box-sizing: border-box;
+  }
+  .placeholder {
+    background-color: rgba(0,0,0,0.06); border: 1px dashed #999;
+    box-sizing: border-box;
+  }
+  .dragging {
+    position: fixed; pointer-events: none; opacity: 1; transform: none; z-index: 1000;
+    border: 2px solid var(--primary); background: #FFF;
+  }
+  .item-num {
+    font-weight: bold; color: #888; font-size: 14px; flex-shrink: 0;
+    pointer-events: none; padding-top: 2px;
+  }
+  .dir-vertical .item-num { padding-top: 0; padding-right: 2px; }
+
+  .drag-handle {
+    cursor: grab; font-size: 1.3rem; color: #666; line-height: 1; flex-shrink: 0;
+    padding: 8px 12px; background-color: rgba(0,0,0,0.05);
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none;
+  }
+  .drag-handle:active { color: var(--primary); background-color: rgba(0,0,0,0.12); }
+
+  .tanzaku-text { flex: 1; min-width: 0; min-height: 0; }
+  .tanzaku.font-mincho, #preview-area.font-mincho { font-family: 'Shippori Mincho', serif; }
+  .tanzaku.font-gothic, #preview-area.font-gothic { font-family: sans-serif; }
+
+  #sort-area.dir-vertical {
+    flex-direction: row-reverse; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; justify-content: flex-start;
+  }
+  #sort-area.dir-horizontal {
+    flex-direction: column; flex-wrap: nowrap; overflow-y: auto; overflow-x: hidden;
+  }
+
+  .tanzaku.dir-vertical, .placeholder.dir-vertical {
+    writing-mode: vertical-rl; padding: 15px 10px; line-height: 2; flex-shrink: 0;
+  }
+  .tanzaku.dir-horizontal, .placeholder.dir-horizontal {
+    writing-mode: horizontal-tb; width: 100%; line-height: 1.5; flex-shrink: 0;
+  }
+
+  .tanzaku.wrap-false .tanzaku-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tanzaku.wrap-true .tanzaku-text { white-space: pre-wrap; word-break: break-all; }
+
+  /* 出力画面 */
+  #preview-area {
+    font-size: 1.0rem; line-height: 1.8; padding: 12px;
+    background: #FFF; border: 1px solid var(--text-color);
+    white-space: pre-wrap; word-wrap: break-word; overflow-y: auto; flex: 1;
+  }
+
+  /* 下部ボタン群 */
+  .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
+
+  html.mode-page-scroll #sort-bottom-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 200;
+    margin: 4px -15px 0 -15px;
+    padding: 8px 15px calc(8px + env(safe-area-inset-bottom, 0px)) 15px;
+    background: rgba(253, 251, 246, 0.92);
+    backdrop-filter: blur(6px);
+    border-top: 1px solid var(--text-color);
+  }
+
+  .action-btn {
+    height: 46px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
+    background: var(--bg-color); color: var(--text-color);
+    border: 1px solid var(--text-color); border-radius: 0; cursor: pointer; flex: 1;
+    white-space: nowrap;
+  }
+  .action-btn.primary { background: var(--text-color); color: var(--bg-color); }
+  .action-btn:active { opacity: 0.7; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="app-container">
+  <!-- 画面1：入力 -->
+  <div id="screen-input" class="screen active">
+    <div class="top-header">
+      <h1>れんさく（単体版）</h1>
+      <div class="header-links">
+        <button type="button" id="btn-clear-input" class="header-link-btn">クリア</button>
+        <a href="index.html" class="header-link-btn">ポータル</a>
+      </div>
+    </div>
+
+    <div class="input-hint">1首ごとに1行の空行を入れて貼り付けてください（入力内容は自動保存されます）。</div>
+    <textarea id="input-text" placeholder="ここに連作を入力してください。&#10;&#10;2首目&#10;&#10;3首目"></textarea>
+
+    <div class="btn-group">
+      <button type="button" id="btn-to-sort" class="action-btn primary">並べ替えへ</button>
+    </div>
+  </div>
+
+  <!-- 画面2：並べ替え -->
+  <div id="screen-sort" class="screen">
+    <div class="toolbar">
+      <button type="button" id="toggle-font" class="toggle-btn">ゴシック</button>
+      <button type="button" id="toggle-dir" class="toggle-btn">横書き</button>
+      <button type="button" id="toggle-wrap" class="toggle-btn">1行表示</button>
+    </div>
+
+    <div class="sort-wrapper">
+      <div id="sort-area"></div>
+      <div id="custom-scrollbar"><div id="custom-thumb"></div></div>
+    </div>
+
+    <div id="sort-bottom-bar" class="btn-group">
+      <button type="button" id="btn-back-input" class="action-btn">入力へ戻る</button>
+      <button type="button" id="btn-to-finish" class="action-btn primary">出力へ</button>
+    </div>
+  </div>
+
+  <!-- 画面3：出力結果 -->
+  <div id="screen-finish" class="screen">
+    <div class="top-header">
+      <h1>出力結果</h1>
+      <a href="index.html" class="header-link-btn">ポータル</a>
+    </div>
+
+    <div id="preview-area"></div>
+
+    <div class="btn-group">
+      <button type="button" id="btn-back-sort" class="action-btn">並べ替えへ戻る</button>
+      <button type="button" id="btn-copy" class="action-btn primary">コピー</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'saikiyo2_rensaku_solo_v1';
+
+  let state = {
+    text: '',
+    prefs: { font: 'gothic', direction: 'horizontal', wrap: 'false' }
+  };
+
+  const screenInput = document.getElementById('screen-input');
+  const screenSort = document.getElementById('screen-sort');
+  const screenFinish = document.getElementById('screen-finish');
+
+  const inputText = document.getElementById('input-text');
+  const sortArea = document.getElementById('sort-area');
+  const sortBottomBar = document.getElementById('sort-bottom-bar');
+  const previewArea = document.getElementById('preview-area');
+
+  const btnClearInput = document.getElementById('btn-clear-input');
+  const btnToSort = document.getElementById('btn-to-sort');
+  const btnBackInput = document.getElementById('btn-back-input');
+  const btnToFinish = document.getElementById('btn-to-finish');
+  const btnBackSort = document.getElementById('btn-back-sort');
+  const btnCopy = document.getElementById('btn-copy');
+
+  const btnToggleFont = document.getElementById('toggle-font');
+  const btnToggleDir = document.getElementById('toggle-dir');
+  const btnToggleWrap = document.getElementById('toggle-wrap');
+
+  let finalResultText = '';
+
+  // ドラッグ状態
+  let deskDraggedItem = null;
+  let deskPlaceholder = null;
+  let deskPointerOffsetX = 0;
+  let deskPointerOffsetY = 0;
+  let deskDragTimer = null;
+  let deskDragStartX = 0;
+  let deskDragStartY = 0;
+  let deskOriginalRectLeft = 0;
+  let deskOriginalRectTop = 0;
+  let deskIsDragging = false;
+  let lastMoveTime = 0;
+  let deskLastClientX = 0;
+  let deskLastClientY = 0;
+  let autoScrollSpeedX = 0;
+  let autoScrollSpeedY = 0;
+  let autoScrollRAF = null;
+
+  // --- ローカルストレージ保存・読込 ---
+  function loadState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (saved) {
+        if (typeof saved.text === 'string') state.text = saved.text;
+        if (saved.prefs) state.prefs = { ...state.prefs, ...saved.prefs };
+      }
+    } catch (_) {}
+    inputText.value = state.text;
+    updateToggleLabels();
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (_) {}
+  }
+
+  function syncSortedTextToState() {
+    const tanzakus = Array.from(sortArea.children).filter(
+      el => el.classList.contains('tanzaku') && !el.classList.contains('dragging')
+    );
+    const joined = tanzakus.map(el => el.querySelector('.tanzaku-text').textContent).join('\n\n');
+    state.text = joined;
+    inputText.value = joined;
+    saveState();
+    return joined;
+  }
+
+  // --- ページ全体スクロール判定 ---
+  function isPageScrollMode() {
+    return screenSort.classList.contains('active') && state.prefs.direction === 'horizontal';
+  }
+
+  function updatePageScrollMode() {
+    const usePageScroll = isPageScrollMode();
+    document.documentElement.classList.toggle('mode-page-scroll', usePageScroll);
+    if (!usePageScroll) window.scrollTo(0, 0);
+  }
+
+  // --- トグル設定 ---
+  function updateToggleLabels() {
+    btnToggleFont.textContent = state.prefs.font === 'mincho' ? '明朝' : 'ゴシック';
+    btnToggleDir.textContent = state.prefs.direction === 'vertical' ? '縦書き' : '横書き';
+    btnToggleWrap.textContent = state.prefs.wrap === 'true' ? '全文表示' : '1行表示';
+  }
+
+  function applyPrefsToSortArea() {
+    sortArea.className = `dir-${state.prefs.direction}`;
+    sortArea.querySelectorAll('.tanzaku').forEach(el => {
+      el.className = `tanzaku font-${state.prefs.font} dir-${state.prefs.direction} wrap-${state.prefs.wrap}`;
+    });
+    updateToggleLabels();
+    updatePageScrollMode();
+    saveState();
+    requestAnimationFrame(updateCustomScrollbar);
+  }
+
+  btnToggleFont.addEventListener('click', () => {
+    state.prefs.font = state.prefs.font === 'gothic' ? 'mincho' : 'gothic';
+    applyPrefsToSortArea();
+  });
+
+  btnToggleDir.addEventListener('click', () => {
+    state.prefs.direction = state.prefs.direction === 'horizontal' ? 'vertical' : 'horizontal';
+    applyPrefsToSortArea();
+  });
+
+  btnToggleWrap.addEventListener('click', () => {
+    state.prefs.wrap = state.prefs.wrap === 'false' ? 'true' : 'false';
+    applyPrefsToSortArea();
+  });
+
+  // --- 画面遷移 ---
+  function showScreen(target) {
+    screenInput.classList.toggle('active', target === 'input');
+    screenSort.classList.toggle('active', target === 'sort');
+    screenFinish.classList.toggle('active', target === 'finish');
+    updatePageScrollMode();
+    if (target === 'sort') setTimeout(updateCustomScrollbar, 50);
+  }
+
+  inputText.addEventListener('input', () => {
+    state.text = inputText.value;
+    saveState();
+  });
+
+  btnClearInput.addEventListener('click', () => {
+    if (!inputText.value.trim()) return;
+    if (confirm('入力内容をクリアしますか？')) {
+      inputText.value = '';
+      state.text = '';
+      saveState();
+    }
+  });
+
+  btnToSort.addEventListener('click', () => {
+    const poems = inputText.value.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    if (poems.length === 0) {
+      alert('短歌が入力されていません。');
+      return;
+    }
+
+    state.text = inputText.value;
+    saveState();
+
+    sortArea.className = `dir-${state.prefs.direction}`;
+    sortArea.innerHTML = '';
+
+    poems.forEach((poem, index) => {
+      const tanzaku = document.createElement('div');
+      tanzaku.className = `tanzaku font-${state.prefs.font} dir-${state.prefs.direction} wrap-${state.prefs.wrap}`;
+
+      const numDiv = document.createElement('div');
+      numDiv.className = 'item-num';
+      numDiv.textContent = index + 1;
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'tanzaku-text';
+      textDiv.textContent = poem;
+
+      const handle = document.createElement('div');
+      handle.className = 'drag-handle';
+      handle.innerHTML = '&#9776;';
+
+      tanzaku.appendChild(numDiv);
+      tanzaku.appendChild(textDiv);
+      tanzaku.appendChild(handle);
+
+      tanzaku.addEventListener('pointerdown', handlePointerDown);
+      sortArea.appendChild(tanzaku);
+    });
+
+    showScreen('sort');
+  });
+
+  btnBackInput.addEventListener('click', () => {
+    syncSortedTextToState();
+    showScreen('input');
+  });
+
+  btnToFinish.addEventListener('click', () => {
+    finalResultText = syncSortedTextToState();
+    previewArea.className = `font-${state.prefs.font}`;
+    previewArea.textContent = finalResultText;
+    showScreen('finish');
+  });
+
+  btnBackSort.addEventListener('click', () => {
+    showScreen('sort');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(finalResultText);
+      alert('コピーしました。');
+    } catch (_) {
+      const ta = document.createElement('textarea');
+      ta.value = finalResultText;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        alert('コピーしました。');
+      } catch (e) {
+        alert('コピーに失敗しました。');
+      }
+      document.body.removeChild(ta);
+    }
+  });
+
+  function updateListNumbers() {
+    const tanzakus = Array.from(sortArea.querySelectorAll('.tanzaku:not(.dragging)'));
+    tanzakus.forEach((el, index) => {
+      const numEl = el.querySelector('.item-num');
+      if (numEl) numEl.textContent = index + 1;
+    });
+  }
+
+  // --- 自前スクロールバー（縦書き時のみ） ---
+  function updateCustomScrollbar() {
+    const track = document.getElementById('custom-scrollbar');
+    const thumb = document.getElementById('custom-thumb');
+    if (!track || !thumb || !screenSort.classList.contains('active') || isPageScrollMode()) {
+      if (track) track.style.display = 'none';
+      return;
+    }
+
+    const sW = sortArea.scrollWidth;
+    const cW = sortArea.clientWidth;
+    if (sW <= cW) { track.style.display = 'none'; return; }
+
+    track.style.display = 'block';
+    track.style.left = '0'; track.style.right = '0';
+    track.style.bottom = '2px'; track.style.top = 'auto';
+    track.style.height = '8px'; track.style.width = '100%';
+
+    const thumbW = Math.max(20, (cW / sW) * cW);
+    let scrollRatio = Math.abs(sortArea.scrollLeft) / (sW - cW);
+    if (scrollRatio > 1) scrollRatio = 1;
+
+    thumb.style.height = '100%';
+    thumb.style.width = `${thumbW}px`;
+    thumb.style.top = '0';
+    thumb.style.right = `${scrollRatio * (cW - thumbW)}px`;
+    thumb.style.left = 'auto';
+  }
+
+  sortArea.addEventListener('scroll', () => { requestAnimationFrame(updateCustomScrollbar); });
+  window.addEventListener('resize', () => { requestAnimationFrame(updateCustomScrollbar); });
+
+  // --- D&D ＋ エッジスクロール ---
+  function handlePointerDown(e) {
+    if (e.button !== 0 && e.type !== 'touchstart') return;
+    if (!e.target.classList.contains('drag-handle')) return;
+
+    deskDraggedItem = this;
+    deskDragStartX = e.clientX;
+    deskDragStartY = e.clientY;
+    deskIsDragging = false;
+
+    deskDragTimer = setTimeout(() => { startDrag(e); }, 250);
+
+    document.addEventListener('pointermove', checkDragThreshold, { passive: true });
+    document.addEventListener('pointerup', handleDragEndPre);
+    document.addEventListener('pointercancel', handleDragEndPre);
+  }
+
+  function checkDragThreshold(e) {
+    if (!deskDraggedItem || deskIsDragging) return;
+    if (Math.abs(e.clientX - deskDragStartX) > 10 || Math.abs(e.clientY - deskDragStartY) > 10) {
+      clearTimeout(deskDragTimer);
+      deskDragTimer = null;
+      deskDraggedItem = null;
+      removePreDragListeners();
+    }
+  }
+
+  function handleDragEndPre() {
+    clearTimeout(deskDragTimer);
+    deskDragTimer = null;
+    deskDraggedItem = null;
+    removePreDragListeners();
+  }
+
+  function removePreDragListeners() {
+    document.removeEventListener('pointermove', checkDragThreshold);
+    document.removeEventListener('pointerup', handleDragEndPre);
+    document.removeEventListener('pointercancel', handleDragEndPre);
+  }
+
+  function startDrag(e) {
+    deskIsDragging = true;
+    removePreDragListeners();
+
+    const rect = deskDraggedItem.getBoundingClientRect();
+    deskOriginalRectLeft = rect.left;
+    deskOriginalRectTop = rect.top;
+
+    deskPlaceholder = document.createElement('div');
+    deskPlaceholder.className = `placeholder dir-${state.prefs.direction}`;
+    if (state.prefs.direction === 'horizontal') {
+      deskPlaceholder.style.height = `${rect.height}px`;
+    } else {
+      deskPlaceholder.style.width = `${rect.width}px`;
+    }
+
+    sortArea.insertBefore(deskPlaceholder, deskDraggedItem);
+
+    deskPointerOffsetX = e.clientX - rect.left;
+    deskPointerOffsetY = e.clientY - rect.top;
+
+    deskDraggedItem.classList.add('dragging');
+    deskDraggedItem.style.width = `${rect.width}px`;
+    deskDraggedItem.style.height = `${rect.height}px`;
+    deskDraggedItem.style.left = `${rect.left}px`;
+    deskDraggedItem.style.top = `${rect.top}px`;
+
+    document.body.appendChild(deskDraggedItem);
+    if (navigator.vibrate) navigator.vibrate(40);
+
+    deskLastClientX = e.clientX;
+    deskLastClientY = e.clientY;
+
+    document.addEventListener('pointermove', handlePointerMove, { passive: false });
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
+  }
+
+  function checkDragIntersection() {
+    if (!deskDraggedItem || !deskPlaceholder) return;
+
+    const checkX = state.prefs.direction === 'vertical' ? deskLastClientX : deskDragStartX;
+    const checkY = state.prefs.direction === 'horizontal' ? deskLastClientY : deskDragStartY;
+
+    const elements = document.elementsFromPoint(checkX, checkY);
+    const target = elements.find(
+      el => el.classList && el.classList.contains('tanzaku') && el.parentNode === sortArea
+    );
+
+    if (target && target !== deskPlaceholder && target !== deskDraggedItem) {
+      const targetRect = target.getBoundingClientRect();
+      if (state.prefs.direction === 'vertical') {
+        if (checkX > targetRect.left + targetRect.width / 2) {
+          sortArea.insertBefore(deskPlaceholder, target);
+        } else {
+          sortArea.insertBefore(deskPlaceholder, target.nextSibling);
+        }
+      } else {
+        if (checkY < targetRect.top + targetRect.height / 2) {
+          sortArea.insertBefore(deskPlaceholder, target);
+        } else {
+          sortArea.insertBefore(deskPlaceholder, target.nextSibling);
+        }
+      }
+    }
+  }
+
+  function startAutoScroll() {
+    if ((autoScrollSpeedX === 0 && autoScrollSpeedY === 0) || !deskIsDragging) {
+      autoScrollRAF = null;
+      return;
+    }
+
+    if (state.prefs.direction === 'vertical') {
+      sortArea.scrollBy({ left: autoScrollSpeedX });
+    } else if (isPageScrollMode()) {
+      window.scrollBy(0, autoScrollSpeedY);
+    } else {
+      sortArea.scrollBy({ top: autoScrollSpeedY });
+    }
+
+    checkDragIntersection();
+    autoScrollRAF = requestAnimationFrame(startAutoScroll);
+  }
+
+  function handlePointerMove(e) {
+    if (!deskIsDragging || !deskDraggedItem) return;
+    e.preventDefault();
+
+    const now = Date.now();
+    if (now - lastMoveTime < 16) return;
+    lastMoveTime = now;
+
+    deskLastClientX = e.clientX;
+    deskLastClientY = e.clientY;
+
+    if (state.prefs.direction === 'horizontal') {
+      deskDraggedItem.style.left = `${deskOriginalRectLeft}px`;
+      deskDraggedItem.style.top = `${e.clientY - deskPointerOffsetY}px`;
+    } else {
+      deskDraggedItem.style.left = `${e.clientX - deskPointerOffsetX}px`;
+      deskDraggedItem.style.top = `${deskOriginalRectTop}px`;
+    }
+
+    const dragRect = deskDraggedItem.getBoundingClientRect();
+    const threshold = 70;
+
+    if (state.prefs.direction === 'vertical') {
+      const sortRect = sortArea.getBoundingClientRect();
+      if (dragRect.left < sortRect.left + threshold) {
+        const ratio = Math.min(1, Math.max(0, sortRect.left + threshold - dragRect.left) / threshold);
+        autoScrollSpeedX = -(3 + ratio * 8);
+      } else if (dragRect.right > sortRect.right - threshold) {
+        const ratio = Math.min(1, Math.max(0, dragRect.right - (sortRect.right - threshold)) / threshold);
+        autoScrollSpeedX = 3 + ratio * 8;
+      } else {
+        autoScrollSpeedX = 0;
+      }
+    } else {
+      const barHeight = sortBottomBar ? sortBottomBar.offsetHeight : 0;
+      const bottomEdge = window.innerHeight - barHeight;
+      if (dragRect.top < threshold) {
+        const ratio = Math.min(1, Math.max(0, threshold - dragRect.top) / threshold);
+        autoScrollSpeedY = -(4 + ratio * 10);
+      } else if (dragRect.bottom > bottomEdge - threshold) {
+        const ratio = Math.min(1, Math.max(0, dragRect.bottom - (bottomEdge - threshold)) / threshold);
+        autoScrollSpeedY = 4 + ratio * 10;
+      } else {
+        autoScrollSpeedY = 0;
+      }
+    }
+
+    if ((autoScrollSpeedX !== 0 || autoScrollSpeedY !== 0) && !autoScrollRAF) {
+      startAutoScroll();
+    }
+
+    checkDragIntersection();
+  }
+
+  function handlePointerUp() {
+    if (!deskIsDragging || !deskDraggedItem) return;
+
+    autoScrollSpeedX = 0;
+    autoScrollSpeedY = 0;
+    if (autoScrollRAF) {
+      cancelAnimationFrame(autoScrollRAF);
+      autoScrollRAF = null;
+    }
+
+    sortArea.insertBefore(deskDraggedItem, deskPlaceholder);
+    deskPlaceholder.remove();
+    deskPlaceholder = null;
+
+    deskDraggedItem.classList.remove('dragging');
+    deskDraggedItem.style = '';
+
+    document.removeEventListener('pointermove', handlePointerMove);
+    document.removeEventListener('pointerup', handlePointerUp);
+    document.removeEventListener('pointercancel', handlePointerUp);
+
+    deskDraggedItem = null;
+    deskIsDragging = false;
+
+    updateListNumbers();
+    syncSortedTextToState();
+    updateCustomScrollbar();
+  }
+
+  window.addEventListener('DOMContentLoaded', loadState);
+</script>
+</body>
+</html>
