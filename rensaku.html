@@ -129,10 +129,11 @@
   }
   .meta-form textarea { resize: none; }
 
-  /* 下部ボタン群 */
+  /* 下部ボタン群（2段対応） */
+  .btn-stack { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
   .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
   .action-btn {
-    height: 48px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
+    height: 46px; padding: 0 10px; font-size: 1.0rem; font-weight: bold;
     background: var(--bg-color); color: var(--text-color);
     border: 1px solid var(--text-color); border-radius: 0; cursor: pointer; flex: 1;
     white-space: nowrap;
@@ -179,10 +180,15 @@
       <input type="text" id="shelf-tags" placeholder="タグ（例: #連作 #提出用）">
     </div>
 
-    <div class="btn-group">
-      <button type="button" id="btn-back-sort" class="action-btn">戻る</button>
-      <button type="button" id="btn-copy" class="action-btn secondary">コピー</button>
-      <button type="button" id="btn-save-shelf" class="action-btn primary">棚に収める</button>
+    <div class="btn-stack">
+      <div class="btn-group">
+        <button type="button" id="btn-back-sort" class="action-btn">戻る</button>
+        <button type="button" id="btn-copy" class="action-btn secondary">コピー</button>
+      </div>
+      <div class="btn-group">
+        <button type="button" id="btn-save-shelf" class="action-btn primary">棚に収める</button>
+        <button type="button" id="btn-go-shelf" class="action-btn secondary">棚に進む</button>
+      </div>
     </div>
   </div>
 </div>
@@ -207,6 +213,7 @@
   const btnBackSort = document.getElementById('btn-back-sort');
   const btnCopy = document.getElementById('btn-copy');
   const btnSaveShelf = document.getElementById('btn-save-shelf');
+  const btnGoShelf = document.getElementById('btn-go-shelf');
 
   const inputTitle = document.getElementById('shelf-title');
   const inputMemo = document.getElementById('shelf-memo');
@@ -214,6 +221,7 @@
 
   let finalResultText = '';
   let orderedCards = [];
+  let currentShelfId = null;
 
   // ドラッグ状態
   let deskDraggedItem = null;
@@ -336,6 +344,8 @@
     if (orderedCards.length === 0) return;
 
     const now = Date.now();
+    if (!currentShelfId) currentShelfId = now;
+
     const firstClean = orderedCards[0].content.replace(/\s+/g, '');
     const autoTitle = firstClean.slice(0, 5) || '無題';
     const title = inputTitle.value.trim() || autoTitle;
@@ -356,23 +366,26 @@
     }));
 
     const shelf = {
-      id: now,
+      id: currentShelfId,
       title,
       memo,
       tags,
       items,
-      order: now,
+      order: currentShelfId,
       lastupdated: now
     };
 
     try {
       await saveShelf(shelf);
-      alert(`「${title}」をリスト棚に収めたロボ！`);
-      window.location.href = 'saikiyo2.html';
+      alert('棚に収めたロボ！');
     } catch (err) {
       console.error(err);
       alert('リスト棚への保存に失敗したロボ...');
     }
+  });
+
+  btnGoShelf.addEventListener('click', () => {
+    window.location.href = 'saikiyo2.html?open=shelf';
   });
 
   // --- 短冊の生成 ---
