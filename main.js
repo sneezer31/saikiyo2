@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（タイムライン・論理削除/ゴミ箱・表示/設定・各モジュール接続） */
+/** さいきよ2 - メイン司令塔（選択ドック・一括タグ差分更新・鑑賞モード・論理削除/ゴミ箱対応） */
 
 import {
   initDB,
@@ -23,16 +23,17 @@ let config = {
 };
 
 let state = {
-  viewScope: 'active',    // 'active' | 'trash'
+  viewScope: 'active',       // 'active' | 'trash'
   searchKeyword: '',
-  filterTags: new Set(),  // タグ名 または '__NO_TAG__'
+  filterTags: new Set(),     // タグ名 または '__NO_TAG__'
   filterDateFrom: '',
   filterDateTo: '',
-  sortOrder: 'asc',       // 'asc' | 'desc'
-  memoMode: 'badge',      // 'badge' | 'full'
+  sortOrder: 'asc',          // 'asc' | 'desc'
+  memoMode: 'badge',         // 'badge' | 'full'
   selectedIds: new Set(),
   editingCardId: null,
-  activeWing: null        // null | 'display' | 'config' | 'data' | 'shelf'
+  batchOriginalTags: new Set(),
+  activeWing: null           // null | 'display' | 'config' | 'data' | 'shelf'
 };
 
 const DOM = {
@@ -46,29 +47,43 @@ const DOM = {
   btnExitTrashMode: document.getElementById('btn-exit-trash-mode'),
   footerBar: document.getElementById('footer-bar'),
   footerNormal: document.getElementById('footer-normal'),
-  footerSelection: document.getElementById('footer-selection'),
+  // 右端フロート選択ドック
+  selectionDock: document.getElementById('selection-dock'),
   selectionCount: document.getElementById('selection-count'),
+  btnSelectAll: document.getElementById('btn-select-all'),
   btnBatchEdit: document.getElementById('btn-batch-edit'),
-  btnCancelSelection: document.getElementById('btn-cancel-selection'),
   btnToDesk: document.getElementById('btn-to-desk'),
+  btnDockReader: document.getElementById('btn-dock-reader'),
+  btnCancelSelection: document.getElementById('btn-cancel-selection'),
+  // 入力コンソール
   consoleArea: document.getElementById('console-area'),
   inputContent: document.getElementById('input-content'),
   inputTags: document.getElementById('input-tags'),
   btnSearch: document.getElementById('btn-search'),
   btnSend: document.getElementById('btn-send'),
+  // 編集パネル
   panelEdit: document.getElementById('panel-edit'),
+  editPanelTitle: document.getElementById('edit-panel-title'),
   btnCloseEdit: document.getElementById('btn-close-edit'),
   editTimestampGroup: document.getElementById('edit-timestamp-group'),
   editTimestamp: document.getElementById('edit-timestamp'),
   editContentView: document.getElementById('edit-content-view'),
+  btnOpenReaderEdit: document.getElementById('btn-open-reader-edit'),
   editMemo: document.getElementById('edit-memo'),
   editTags: document.getElementById('edit-tags'),
+  editTagsHint: document.getElementById('edit-tags-hint'),
   editRestoreRow: document.getElementById('edit-restore-row'),
   btnRestoreEdit: document.getElementById('btn-restore-edit'),
   btnSaveEdit: document.getElementById('btn-save-edit'),
   btnDeleteEdit: document.getElementById('btn-delete-edit'),
   btnCopyEdit: document.getElementById('btn-copy-edit'),
   btnShelfEdit: document.getElementById('btn-shelf-edit'),
+  // 鑑賞モード（広げて読む）
+  panelReader: document.getElementById('panel-reader'),
+  readerTitle: document.getElementById('reader-title'),
+  readerContent: document.getElementById('reader-content'),
+  btnReaderCopy: document.getElementById('btn-reader-copy'),
+  btnCloseReader: document.getElementById('btn-close-reader'),
   // ウィングパネル
   panelDisplay: document.getElementById('panel-display'),
   panelConfig: document.getElementById('panel-config'),
@@ -422,8 +437,9 @@ document.querySelectorAll('[data-memo-mode]').forEach(btn => {
 function adjustTimelinePadding() {
   const isConsoleOpen = DOM.consoleArea.classList.contains('open');
   const activeElement = isConsoleOpen ? DOM.consoleArea : DOM.footerBar;
-  DOM.timeline.style.paddingBottom = `${activeElement.offsetHeight}px`;
-  if (state.sortOrder === 'asc') {
+  const pad = Math.max(activeElement.offsetHeight, 64);
+  DOM.timeline.style.paddingBottom = `${pad}px`;
+  if (state.sortOrder === 'asc' && state.selectedIds.size === 0) {
     DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
   }
 }
@@ -440,8 +456,10 @@ function openInputConsole() {
 }
 
 function closeInputConsole() {
-  DOM.footerBar.style.display = 'block';
   DOM.consoleArea.classList.remove('open');
+  if (state.selectedIds.size === 0) {
+    DOM.footerBar.style.display = 'block';
+  }
   adjustTimelinePadding();
   DOM.inputContent.blur();
   DOM.inputTags.blur();
@@ -484,10 +502,40 @@ function updateSelectionBar() {
   updateSelectionBarUI(state.selectedIds.size, DOM);
 }
 
+// 選択中のカードをタイムライン順で取得
+async function getSelectedCardsOrdered() {
+  const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
+  cards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
+  return cards;
+}
+
+// ドック：全選択（表示中のカードをすべて選択、スクロール位置維持）
+DOM.btnSelectAll.addEventListener('click', () => {
+  const cardEls = DOM.timeline.querySelectorAll('.card');
+  cardEls.forEach(el => {
+    const id = Number(el.dataset.id);
+    if (!Number.isNaN(id)) {
+      state.selectedIds.add(id);
+      const chk = el.querySelector('.card-check');
+      if (chk) chk.checked = true;
+    }
+  });
+  updateSelectionBar();
+});
+
+// ドック：取消（スクロール位置維持）
 DOM.btnCancelSelection.addEventListener('click', () => {
   state.selectedIds.clear();
-  renderTimeline();
+  DOM.timeline.querySelectorAll('.card-check').forEach(chk => { chk.checked = false; });
   updateSelectionBar();
+});
+
+// ドック：広げて読む
+DOM.btnDockReader.addEventListener('click', async () => {
+  if (state.selectedIds.size === 0) return;
+  const cards = await getSelectedCardsOrdered();
+  if (cards.length === 0) return;
+  openReader(`鑑賞モード（${cards.length}首）`, cards.map(c => c.content).join('\n\n'));
 });
 
 DOM.btnSend.addEventListener('click', async () => {
@@ -514,7 +562,30 @@ DOM.btnSearch.addEventListener('click', async () => {
   if (DOM.consoleArea.classList.contains('open')) history.back();
 });
 
-// --- 詳細・編集パネル（論理削除＆ゴミ箱からの復元対応） ---
+// --- 鑑賞モード（広げて読む） ---
+function openReader(title, text) {
+  DOM.readerTitle.textContent = title || '鑑賞モード';
+  DOM.readerContent.textContent = text || '';
+  DOM.panelReader.scrollTop = 0;
+  DOM.panelReader.classList.add('active');
+}
+
+DOM.btnCloseReader.addEventListener('click', () => {
+  DOM.panelReader.classList.remove('active');
+});
+
+DOM.btnReaderCopy.addEventListener('click', async () => {
+  const text = DOM.readerContent.textContent;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    alert('コピーしました。');
+  } catch (_) {
+    alert('コピーに失敗しました。');
+  }
+});
+
+// --- 詳細・編集パネル（一括タグ差分更新・論理削除＆復元・鑑賞モード） ---
 function configureEditTrashButtons(isTrashMode) {
   DOM.editRestoreRow.style.display = isTrashMode ? 'flex' : 'none';
   DOM.btnDeleteEdit.textContent = isTrashMode ? '完全削除' : 'ゴミ箱へ';
@@ -522,6 +593,8 @@ function configureEditTrashButtons(isTrashMode) {
 
 function openEditPanel(card) {
   state.editingCardId = card.id;
+  state.batchOriginalTags.clear();
+  DOM.editPanelTitle.textContent = '詳細・編集';
   DOM.editTimestampGroup.style.display = 'flex';
   const deletedNote = card.deletedAt ? ` ／ ゴミ箱移動: ${formatDateWithWeekday(card.deletedAt)}` : '';
   DOM.editTimestamp.textContent = `${formatDateWithWeekday(card.id)}${deletedNote}`;
@@ -529,6 +602,7 @@ function openEditPanel(card) {
   DOM.editMemo.disabled = false;
   DOM.editMemo.value = card.memo || '';
   DOM.editTags.value = Array.isArray(card.tags) ? card.tags.join(' ') : '';
+  DOM.editTagsHint.style.display = 'none';
   configureEditTrashButtons(Boolean(card.deletedAt));
   DOM.panelEdit.classList.add('active');
 }
@@ -538,47 +612,96 @@ DOM.btnCloseEdit.addEventListener('click', () => {
   DOM.editMemo.disabled = false;
 });
 
+DOM.btnOpenReaderEdit.addEventListener('click', async () => {
+  if (state.editingCardId === 'batch') {
+    const cards = await getSelectedCardsOrdered();
+    if (cards.length === 0) return;
+    openReader(`鑑賞モード（${cards.length}首）`, cards.map(c => c.content).join('\n\n'));
+  } else {
+    openReader('鑑賞モード', DOM.editContentView.innerText);
+  }
+});
+
 document.querySelectorAll('.helper-tag').forEach(btn => {
   btn.addEventListener('click', (e) => {
-    DOM.editTags.value = (DOM.editTags.value + ' ' + e.target.innerText).trim();
+    const tag = e.target.innerText.trim();
+    const current = DOM.editTags.value.trim().split(/\s+/).filter(Boolean);
+    if (!current.includes(tag)) {
+      current.push(tag);
+      DOM.editTags.value = current.join(' ');
+    }
   });
 });
 
-DOM.btnBatchEdit.addEventListener('click', () => {
+// 一括編集：タグの和集合を初期表示し、保存時に差分更新
+DOM.btnBatchEdit.addEventListener('click', async () => {
   if (state.selectedIds.size === 0) return;
+  const cards = await getSelectedCardsOrdered();
+  if (cards.length === 0) return;
+
   state.editingCardId = 'batch';
+  DOM.editPanelTitle.textContent = `一括編集（${cards.length}件）`;
   DOM.editTimestampGroup.style.display = 'none';
   DOM.editTimestamp.textContent = '';
-  DOM.editContentView.innerText = `【一括編集モード】\n選択された ${state.selectedIds.size} 件のカードを処理します。`;
-  DOM.editMemo.value = '※一括編集ではメモは変更できません';
+  DOM.editContentView.innerText = cards.map(c => c.content).join('\n---\n');
+  DOM.editMemo.value = '※複数選択時はメモを編集できません';
   DOM.editMemo.disabled = true;
-  DOM.editTags.value = '';
+
+  const unionTags = new Set();
+  cards.forEach(c => {
+    if (Array.isArray(c.tags)) {
+      c.tags.forEach(t => {
+        const cleaned = String(t).trim();
+        if (cleaned) unionTags.add(cleaned.startsWith('#') ? cleaned : '#' + cleaned);
+      });
+    }
+  });
+
+  state.batchOriginalTags = new Set(unionTags);
+  DOM.editTags.value = Array.from(unionTags).join(' ');
+  DOM.editTagsHint.textContent = '※一括編集：消したタグだけ削除され、足したタグだけ追加されます（各カード固有のタグは保持）。';
+  DOM.editTagsHint.style.display = 'block';
+
   configureEditTrashButtons(state.viewScope === 'trash');
   DOM.panelEdit.classList.add('active');
 });
 
 DOM.btnSaveEdit.addEventListener('click', async () => {
-  const newTagsInput = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+  const newTagsInput = DOM.editTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
   const now = Date.now();
 
   if (state.editingCardId === 'batch') {
+    const newTagSet = new Set(newTagsInput);
+    const origTagSet = state.batchOriginalTags;
+    const tagsToRemove = new Set([...origTagSet].filter(t => !newTagSet.has(t)));
+    const tagsToAdd = new Set([...newTagSet].filter(t => !origTagSet.has(t)));
+
     const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
       const card = await getCard(id);
       if (!card) return null;
-      const existingTags = Array.isArray(card.tags) ? card.tags : [];
-      card.tags = Array.from(new Set([...existingTags, ...newTagsInput]));
+      const currentTags = Array.isArray(card.tags) ? card.tags : [];
+      const nextTags = currentTags.filter(t => !tagsToRemove.has(t));
+      tagsToAdd.forEach(t => {
+        if (!nextTags.includes(t)) nextTags.push(t);
+      });
+      card.tags = nextTags;
       card.lastupdated = now;
       return card;
     }))).filter(Boolean);
 
     await bulkSaveCards(updatedCards);
     state.selectedIds.clear();
+    state.batchOriginalTags.clear();
     updateSelectionBar();
   } else {
     const card = await getCard(state.editingCardId);
     if (card) {
       card.memo = DOM.editMemo.value;
-      card.tags = newTagsInput;
+      card.tags = Array.from(new Set(newTagsInput));
       card.lastupdated = now;
       await saveCard(card);
     }
@@ -625,7 +748,7 @@ DOM.btnRestoreEdit.addEventListener('click', async () => {
 DOM.btnCopyEdit.addEventListener('click', async () => {
   let contentToCopy = '';
   if (state.editingCardId === 'batch') {
-    const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
+    const cards = await getSelectedCardsOrdered();
     contentToCopy = cards.map(c => c.content).join('\n\n');
   } else {
     contentToCopy = DOM.editContentView.innerText;
@@ -644,7 +767,7 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
   const inputTags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
 
   if (state.editingCardId === 'batch') {
-    const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
+    const cards = await getSelectedCardsOrdered();
     if (cards.length === 0) return;
 
     const title = cards[0].content.replace(/\s+/g, '').slice(0, 5) || '無題';
