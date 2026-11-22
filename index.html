@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ポータル - さいきよ経済圏</title>
+<title>さいきよ2</title>
 <style>
   :root {
     --bg-color: #FDFBF6;
     --text-color: #1A1A1A;
     --btn-bg: #EAE6DF;
+    --muted-color: #555555;
   }
 
   body {
-    margin: 0; padding: 0;
+    margin: 0; padding: 20px;
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: sans-serif;
@@ -21,7 +22,6 @@
     align-items: center;
     justify-content: center;
     min-height: 100dvh;
-    padding: 20px;
     box-sizing: border-box;
   }
 
@@ -32,17 +32,17 @@
 
   h1 {
     text-align: center;
-    font-size: 1.5rem;
-    margin-bottom: 40px;
-    letter-spacing: 4px;
-    border-bottom: 1px solid var(--text-color);
+    font-size: 1.4rem;
+    margin: 0 0 32px 0;
+    letter-spacing: 2px;
+    border-bottom: 2px solid var(--text-color);
     padding-bottom: 10px;
   }
 
   .menu-list {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   .menu-item {
@@ -50,11 +50,10 @@
     text-decoration: none;
     background: var(--btn-bg);
     color: var(--text-color);
-    padding: 20px;
-    border-radius: 8px;
+    padding: 18px 20px;
     text-align: center;
     border: 1px solid var(--text-color);
-    box-shadow: 3px 3px 0px rgba(0,0,0,0.1);
+    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
     transition: transform 0.1s, box-shadow 0.1s;
   }
 
@@ -65,47 +64,38 @@
 
   .menu-title {
     display: block;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     font-weight: bold;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
   }
 
   .menu-desc {
     display: block;
     font-size: 0.85rem;
-    color: #555;
+    color: var(--muted-color);
+    line-height: 1.4;
   }
 </style>
 </head>
 <body>
 
 <div class="portal-container">
-  <h1>ポータル</h1>
-  
+  <h1>さいきよ2</h1>
+
   <div class="menu-list">
     <a href="saikiyo2.html" class="menu-item">
-      <span class="menu-title">海（さいきよ2）</span>
-      <span class="menu-desc">閲覧・推敲・タグ管理・増殖</span>
+      <span class="menu-title">さいきよ2</span>
+      <span class="menu-desc">短歌の記録・タグ整理・リスト棚・バックアップ</span>
     </a>
-    
-    <a href="rensaku.html" class="menu-item">
-      <span class="menu-title">机（れんさく）</span>
-      <span class="menu-desc">タロットカードの展開と物理D&D</span>
+
+    <a href="rensaku-solo.html" class="menu-item">
+      <span class="menu-title">れんさく（単体版）</span>
+      <span class="menu-desc">テキスト貼り付けによる連作の並べ替え</span>
     </a>
-    
+
     <a href="tategaki.html" class="menu-item">
-      <span class="menu-title">アトリエ（たてがき）</span>
-      <span class="menu-desc">縦書き画像への視覚定着</span>
-    </a>
-    
-    <a href="data-manage.html" class="menu-item">
-      <span class="menu-title">管理局</span>
-      <span class="menu-desc">データのインポートと物理削除(GC)</span>
-    </a>
-    
-    <a href="mail-sync.html" class="menu-item">
-      <span class="menu-title">公証の金庫</span>
-      <span class="menu-desc">自分宛てメールによる絶対タイムスタンプ</span>
+      <span class="menu-title">たてがき</span>
+      <span class="menu-desc">短歌の縦書き画像を作成・保存</span>
     </a>
   </div>
 </div>
