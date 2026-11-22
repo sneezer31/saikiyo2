@@ -1,4 +1,4 @@
-/** さいきよ2 - データ管理モジュール（バックアップ・復元・一括削除） */
+/** さいきよ2 - データ管理モジュール（共有バックアップ・.txt復元・一括削除） */
 
 import {
   loadAllCards,
@@ -11,6 +11,7 @@ import {
 export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   const DOM = {
     stats: document.getElementById('data-stats'),
+    btnExportShare: document.getElementById('btn-export-share'),
     btnExportFile: document.getElementById('btn-export-file'),
     btnExportCopy: document.getElementById('btn-export-copy'),
     btnImportFile: document.getElementById('btn-import-file'),
@@ -39,14 +40,15 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     };
   }
 
-  DOM.btnExportFile.addEventListener('click', async () => {
-    const payload = await buildBackupPayload();
-    const jsonStr = JSON.stringify(payload, null, 2);
+  function makeBackupFileName() {
     const d = new Date();
     const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    const fileName = `saikiyo2_backup_${ymd}.json`;
+    const hm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+    return `saikiyo2_backup_${ymd}_${hm}.txt`;
+  }
 
-    const blob = new Blob([jsonStr], { type: 'application/json' });
+  function downloadTextFile(jsonStr, fileName) {
+    const blob = new Blob([jsonStr], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -55,6 +57,38 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // 共有シートを立ち上げて .txt ファイルをメール等へ送る
+  DOM.btnExportShare.addEventListener('click', async () => {
+    const payload = await buildBackupPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const fileName = makeBackupFileName();
+    const file = new File([jsonStr], fileName, { type: 'text/plain' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `さいきよ2 バックアップ (${fileName})`,
+          text: `カード ${payload.cards.length} 件 ／ リスト棚 ${payload.shelves.length} 件`
+        });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // ユーザーキャンセル
+      }
+    }
+
+    // 共有非対応環境（PCブラウザ等）はそのまま .txt ダウンロードへフォールバック
+    downloadTextFile(jsonStr, fileName);
+    alert('この端末では直接共有に非対応のため、.txt ファイルとして保存しました。');
+  });
+
+  // 通常の .txt ファイル保存
+  DOM.btnExportFile.addEventListener('click', async () => {
+    const payload = await buildBackupPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    downloadTextFile(jsonStr, makeBackupFileName());
   });
 
   DOM.btnExportCopy.addEventListener('click', async () => {
@@ -62,34 +96,66 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     const jsonStr = JSON.stringify(payload);
     try {
       await navigator.clipboard.writeText(jsonStr);
-      alert(`バックアップ用JSON（カード${payload.cards.length}件・棚${payload.shelves.length}件）をコピーしました。`);
+      alert(`バックアップ用データ（カード${payload.cards.length}件・棚${payload.shelves.length}件）をコピーしました。`);
     } catch (_) {
       alert('コピーに失敗しました。');
     }
   });
 
+  // 初代データを含めて安全に正規化する
+  function normalizeCard(raw, fallbackOffset) {
+    if (!raw || typeof raw !== 'object') return null;
+    const content = typeof raw.content === 'string'
+      ? raw.content
+      : (typeof raw.text === 'string' ? raw.text : (typeof raw.body === 'string' ? raw.body : null));
+    if (content === null) return null;
+
+    const idNum = Number(raw.id);
+    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
+
+    let tags = [];
+    if (Array.isArray(raw.tags)) {
+      tags = raw.tags.map(t => String(t).trim()).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+    } else if (typeof raw.tags === 'string' && raw.tags.trim()) {
+      tags = raw.tags.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+    }
+
+    return {
+      id,
+      content,
+      memo: typeof raw.memo === 'string' ? raw.memo : '',
+      tags,
+      lastupdated: Number(raw.lastupdated) || id
+    };
+  }
+
   async function importBackupJson(rawText) {
     let parsed;
     try {
-      parsed = JSON.parse(rawText);
+      parsed = JSON.parse(rawText.trim());
     } catch (_) {
-      alert('JSONの形式が正しくありません。');
+      alert('ファイルの中身が正しいJSON形式ではありません。');
       return;
     }
 
-    let cardsToImport = [];
+    let rawCards = [];
     let shelvesToImport = [];
 
     if (Array.isArray(parsed)) {
-      cardsToImport = parsed.filter(c => c && typeof c.id !== 'undefined' && typeof c.content === 'string');
+      rawCards = parsed;
     } else if (parsed && typeof parsed === 'object') {
-      if (Array.isArray(parsed.cards)) {
-        cardsToImport = parsed.cards.filter(c => c && typeof c.id !== 'undefined' && typeof c.content === 'string');
-      }
+      if (Array.isArray(parsed.cards)) rawCards = parsed.cards;
+      else if (Array.isArray(parsed.data)) rawCards = parsed.data;
+      else if (Array.isArray(parsed.items)) rawCards = parsed.items;
+
       if (Array.isArray(parsed.shelves)) {
         shelvesToImport = parsed.shelves.filter(s => s && typeof s.id !== 'undefined' && Array.isArray(s.items));
       }
     }
+
+    const cardsToImport = rawCards
+      .map((c, idx) => normalizeCard(c, idx))
+      .filter(Boolean);
 
     if (cardsToImport.length === 0 && shelvesToImport.length === 0) {
       alert('読み込めるデータが見つかりませんでした。');
