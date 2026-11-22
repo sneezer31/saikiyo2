@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（タイムライン・編集・表示/設定・各モジュール接続） */
+/** さいきよ2 - メイン司令塔（タイムライン・論理削除/ゴミ箱・表示/設定・各モジュール接続） */
 
 import {
   initDB,
@@ -23,6 +23,7 @@ let config = {
 };
 
 let state = {
+  viewScope: 'active',    // 'active' | 'trash'
   searchKeyword: '',
   filterTags: new Set(),  // タグ名 または '__NO_TAG__'
   filterDateFrom: '',
@@ -41,6 +42,8 @@ const DOM = {
   btnRightWing: document.getElementById('btn-right-wing'),
   btnOpenShelf: document.getElementById('btn-open-shelf'),
   btnFab: document.getElementById('btn-fab'),
+  trashModeBanner: document.getElementById('trash-mode-banner'),
+  btnExitTrashMode: document.getElementById('btn-exit-trash-mode'),
   footerBar: document.getElementById('footer-bar'),
   footerNormal: document.getElementById('footer-normal'),
   footerSelection: document.getElementById('footer-selection'),
@@ -60,6 +63,8 @@ const DOM = {
   editContentView: document.getElementById('edit-content-view'),
   editMemo: document.getElementById('edit-memo'),
   editTags: document.getElementById('edit-tags'),
+  editRestoreRow: document.getElementById('edit-restore-row'),
+  btnRestoreEdit: document.getElementById('btn-restore-edit'),
   btnSaveEdit: document.getElementById('btn-save-edit'),
   btnDeleteEdit: document.getElementById('btn-delete-edit'),
   btnCopyEdit: document.getElementById('btn-copy-edit'),
@@ -72,6 +77,7 @@ const DOM = {
   // 表示パネル
   btnDisplayReset: document.getElementById('btn-display-reset'),
   displayStatus: document.getElementById('display-status'),
+  btnScopeTrash: document.getElementById('btn-scope-trash'),
   displayTagList: document.getElementById('display-tag-list'),
   filterDateFrom: document.getElementById('filter-date-from'),
   filterDateTo: document.getElementById('filter-date-to')
@@ -166,12 +172,16 @@ function updateHeaderWingButtons() {
   if (state.activeWing === 'display' || state.activeWing === 'config') {
     DOM.btnLeftWing.textContent = '設定';
     DOM.btnLeftWing.classList.add('is-active');
+  } else if (state.viewScope === 'trash') {
+    DOM.btnLeftWing.textContent = `表示(ゴミ箱)${filterMark}`;
+    DOM.btnLeftWing.classList.remove('is-active');
   } else {
     DOM.btnLeftWing.textContent = `表示${filterMark}`;
     DOM.btnLeftWing.classList.remove('is-active');
   }
 
   DOM.btnRightWing.classList.toggle('is-active', state.activeWing === 'data');
+  DOM.trashModeBanner.style.display = state.viewScope === 'trash' ? 'flex' : 'none';
 }
 
 async function openWing(wingName) {
@@ -215,15 +225,29 @@ document.querySelectorAll('.btn-close-wing').forEach(btn => {
   btn.addEventListener('click', closeAllWings);
 });
 
+DOM.btnExitTrashMode.addEventListener('click', async () => {
+  state.viewScope = 'active';
+  state.selectedIds.clear();
+  updateSelectionBar();
+  await renderTimeline();
+  updateHeaderWingButtons();
+});
+
 DOM.btnTop.addEventListener('click', () => {
   if (state.activeWing) closeAllWings();
   const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
   DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
 });
 
-// --- 表示パネル（絞り込み・並び順・メモ表示） ---
+// --- 表示パネル（対象切替・絞り込み・並び順・メモ表示） ---
+function filterByScope(allCards) {
+  return state.viewScope === 'trash'
+    ? allCards.filter(c => Boolean(c.deletedAt))
+    : allCards.filter(c => !c.deletedAt);
+}
+
 function filterCards(allCards) {
-  let result = allCards;
+  let result = filterByScope(allCards);
 
   if (state.searchKeyword) {
     const kw = state.searchKeyword;
@@ -263,18 +287,28 @@ function filterCards(allCards) {
 
 async function renderDisplayPanel() {
   const allCards = await loadAllCards();
+  const scopedCards = filterByScope(allCards);
   const filtered = filterCards(allCards);
+  const trashCount = allCards.filter(c => Boolean(c.deletedAt)).length;
 
+  if (DOM.btnScopeTrash) {
+    DOM.btnScopeTrash.textContent = `ゴミ箱 (${trashCount})`;
+  }
+  document.querySelectorAll('[data-scope]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.scope === state.viewScope);
+  });
+
+  const scopeLabel = state.viewScope === 'trash' ? 'ゴミ箱' : '通常';
   if (hasActiveFilter()) {
     const kwNote = state.searchKeyword ? `（検索: ${state.searchKeyword}）` : '';
-    DOM.displayStatus.textContent = `絞り込み中：${filtered.length} / ${allCards.length} 件${kwNote}`;
+    DOM.displayStatus.textContent = `${scopeLabel}を絞り込み中：${filtered.length} / ${scopedCards.length} 件${kwNote}`;
   } else {
-    DOM.displayStatus.textContent = `全件表示中：${allCards.length} 件`;
+    DOM.displayStatus.textContent = `${scopeLabel}を全件表示中：${scopedCards.length} 件`;
   }
 
   const tagCounts = new Map();
   let noTagCount = 0;
-  allCards.forEach(c => {
+  scopedCards.forEach(c => {
     const tags = Array.isArray(c.tags) ? c.tags : [];
     if (tags.length === 0) noTagCount++;
     else tags.forEach(t => tagCounts.set(t, (tagCounts.get(t) || 0) + 1));
@@ -314,7 +348,7 @@ async function renderDisplayPanel() {
   }
 
   if (sortedTags.length === 0 && noTagCount === 0) {
-    DOM.displayTagList.innerHTML = '<span style="color:var(--muted-color); font-size:0.85rem;">まだカードがありません。</span>';
+    DOM.displayTagList.innerHTML = `<span style="color:var(--muted-color); font-size:0.85rem;">${scopeLabel}にカードはありません。</span>`;
   }
 
   DOM.filterDateFrom.value = state.filterDateFrom;
@@ -328,11 +362,27 @@ async function renderDisplayPanel() {
   });
 }
 
+document.querySelectorAll('[data-scope]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const nextScope = btn.dataset.scope;
+    if (state.viewScope === nextScope) return;
+    state.viewScope = nextScope;
+    state.selectedIds.clear();
+    updateSelectionBar();
+    await renderTimeline();
+    await renderDisplayPanel();
+    updateHeaderWingButtons();
+  });
+});
+
 DOM.btnDisplayReset.addEventListener('click', async () => {
+  state.viewScope = 'active';
   state.searchKeyword = '';
   state.filterTags.clear();
   state.filterDateFrom = '';
   state.filterDateTo = '';
+  state.selectedIds.clear();
+  updateSelectionBar();
   await renderTimeline();
   await renderDisplayPanel();
   updateHeaderWingButtons();
@@ -446,10 +496,14 @@ DOM.btnSend.addEventListener('click', async () => {
 
   const tags = DOM.inputTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
   const now = Date.now();
-  await saveCard({ id: now, content, memo: '', tags, lastupdated: now });
+  await saveCard({ id: now, content, memo: '', tags, lastupdated: now, deletedAt: null });
 
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
+  if (state.viewScope === 'trash') {
+    state.viewScope = 'active';
+    updateHeaderWingButtons();
+  }
   await renderTimeline();
 });
 
@@ -460,15 +514,22 @@ DOM.btnSearch.addEventListener('click', async () => {
   if (DOM.consoleArea.classList.contains('open')) history.back();
 });
 
-// --- プロパティ編集パネル ---
+// --- 詳細・編集パネル（論理削除＆ゴミ箱からの復元対応） ---
+function configureEditTrashButtons(isTrashMode) {
+  DOM.editRestoreRow.style.display = isTrashMode ? 'flex' : 'none';
+  DOM.btnDeleteEdit.textContent = isTrashMode ? '完全削除' : 'ゴミ箱へ';
+}
+
 function openEditPanel(card) {
   state.editingCardId = card.id;
   DOM.editTimestampGroup.style.display = 'flex';
-  DOM.editTimestamp.textContent = formatDateWithWeekday(card.id);
+  const deletedNote = card.deletedAt ? ` ／ ゴミ箱移動: ${formatDateWithWeekday(card.deletedAt)}` : '';
+  DOM.editTimestamp.textContent = `${formatDateWithWeekday(card.id)}${deletedNote}`;
   DOM.editContentView.innerText = card.content;
   DOM.editMemo.disabled = false;
   DOM.editMemo.value = card.memo || '';
   DOM.editTags.value = Array.isArray(card.tags) ? card.tags.join(' ') : '';
+  configureEditTrashButtons(Boolean(card.deletedAt));
   DOM.panelEdit.classList.add('active');
 }
 
@@ -492,6 +553,7 @@ DOM.btnBatchEdit.addEventListener('click', () => {
   DOM.editMemo.value = '※一括編集ではメモは変更できません';
   DOM.editMemo.disabled = true;
   DOM.editTags.value = '';
+  configureEditTrashButtons(state.viewScope === 'trash');
   DOM.panelEdit.classList.add('active');
 });
 
@@ -523,6 +585,39 @@ DOM.btnSaveEdit.addEventListener('click', async () => {
   }
 
   await renderTimeline();
+  DOM.panelEdit.classList.remove('active');
+  DOM.editMemo.disabled = false;
+});
+
+// ゴミ箱から戻す（論理削除の解除）
+DOM.btnRestoreEdit.addEventListener('click', async () => {
+  const now = Date.now();
+
+  if (state.editingCardId === 'batch') {
+    const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
+      const card = await getCard(id);
+      if (!card) return null;
+      card.deletedAt = null;
+      card.lastupdated = now;
+      return card;
+    }))).filter(Boolean);
+
+    await bulkSaveCards(updatedCards);
+    state.selectedIds.clear();
+    updateSelectionBar();
+  } else {
+    const card = await getCard(state.editingCardId);
+    if (card) {
+      card.deletedAt = null;
+      card.lastupdated = now;
+      await saveCard(card);
+      state.selectedIds.delete(card.id);
+      updateSelectionBar();
+    }
+  }
+
+  await renderTimeline();
+  await dataManagerModule.checkMonthlyTrashReminder();
   DOM.panelEdit.classList.remove('active');
   DOM.editMemo.disabled = false;
 });
@@ -583,20 +678,48 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
   alert('棚に収めました。');
 });
 
+// 削除ボタン：通常時は論理削除（ゴミ箱移動）、ゴミ箱表示中は物理削除
 DOM.btnDeleteEdit.addEventListener('click', async () => {
+  const now = Date.now();
+  const isTrashMode = state.editingCardId === 'batch'
+    ? state.viewScope === 'trash'
+    : Boolean((await getCard(state.editingCardId))?.deletedAt);
+
   if (state.editingCardId === 'batch') {
-    if (!confirm(`選択された ${state.selectedIds.size} 件のカードを一括削除しますか？この操作は取り消せません。`)) return;
-    await Promise.all(Array.from(state.selectedIds).map(id => deleteCard(id)));
+    if (isTrashMode) {
+      if (!confirm(`選択された ${state.selectedIds.size} 件を完全に削除しますか？この操作は取り消せません。`)) return;
+      await Promise.all(Array.from(state.selectedIds).map(id => deleteCard(id)));
+    } else {
+      const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
+        const card = await getCard(id);
+        if (!card) return null;
+        card.deletedAt = now;
+        card.lastupdated = now;
+        return card;
+      }))).filter(Boolean);
+      await bulkSaveCards(updatedCards);
+    }
     state.selectedIds.clear();
   } else {
-    if (!confirm('このカードを削除しますか？この操作は取り消せません。')) return;
-    await deleteCard(state.editingCardId);
+    if (isTrashMode) {
+      if (!confirm('このカードを完全に削除しますか？この操作は取り消せません。')) return;
+      await deleteCard(state.editingCardId);
+    } else {
+      const card = await getCard(state.editingCardId);
+      if (card) {
+        card.deletedAt = now;
+        card.lastupdated = now;
+        await saveCard(card);
+      }
+    }
     state.selectedIds.delete(state.editingCardId);
   }
 
   updateSelectionBar();
   await renderTimeline();
+  await dataManagerModule.checkMonthlyTrashReminder();
   DOM.panelEdit.classList.remove('active');
+  DOM.editMemo.disabled = false;
 });
 
 DOM.btnToDesk.addEventListener('click', () => {
@@ -613,6 +736,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await shelfModule.updateBadge();
   updateHeaderWingButtons();
   adjustTimelinePadding();
+  await dataManagerModule.checkMonthlyTrashReminder();
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('open') === 'shelf') {
