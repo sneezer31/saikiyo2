@@ -1,8 +1,24 @@
+export function formatDateWithWeekday(timestamp) {
+  const d = new Date(timestamp);
+  const days = ['日', '月', '火', '水', '木', '金', '土'];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const w = days[d.getDay()];
+  return `${y}/${m}/${day}(${w})`;
+}
+
 export function createTankaCard(card, isSelected, onCheck, onClick) {
   const div = document.createElement('div');
   div.className = 'card';
-  
-  // 上段：メタデータ行（チェックボックスと日付・タグを同じ箱に入れる）
+
+  // 上段：本文
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  body.innerHTML = card.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  body.addEventListener('click', () => onClick(card));
+
+  // 下段：メタデータ行（チェックボックスとタグのみ）
   const metaWrap = document.createElement('div');
   metaWrap.className = 'card-meta-wrap';
   
@@ -17,21 +33,14 @@ export function createTankaCard(card, isSelected, onCheck, onClick) {
 
   const metaInfo = document.createElement('div');
   metaInfo.className = 'card-meta-info';
-  const dateStr = new Date(card.id).toLocaleString();
   const tagStr = card.tags && Array.isArray(card.tags) ? card.tags.join(' ') : '';
-  metaInfo.innerHTML = `${dateStr}  ${tagStr}`;
+  metaInfo.textContent = tagStr;
 
   metaWrap.appendChild(checkWrap);
   metaWrap.appendChild(metaInfo);
 
-  // 下段：本文
-  const body = document.createElement('div');
-  body.className = 'card-body';
-  body.innerHTML = card.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  body.addEventListener('click', () => onClick(card));
-
-  div.appendChild(metaWrap);
   div.appendChild(body);
+  div.appendChild(metaWrap);
   
   return div;
 }

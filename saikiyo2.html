@@ -34,10 +34,8 @@
   </div>
 
   <div id="console-area">
-    <!-- 呪いを断ち切る rows="1" -->
     <textarea id="input-content" rows="1" placeholder="本文を入力..."></textarea>
     <div class="console-bottom">
-      <!-- 正しいクラス名に統一 -->
       <button id="btn-search" class="console-btn-icon">検</button>
       <textarea id="input-tags" placeholder="タグ（#作品 等）"></textarea>
       <button id="btn-send" class="console-btn-icon">送</button>
@@ -49,6 +47,7 @@
       <h2>プロパティ編集</h2>
       <button id="btn-close-edit">戻る</button>
     </div>
+    <div id="edit-timestamp"></div>
     <div class="edit-readonly" id="edit-content-view" style="margin-bottom:15px; padding:10px; background:#f0f0f0; font-size:1.1rem; white-space:pre-wrap;"></div>
     
     <div class="edit-group">
@@ -58,8 +57,7 @@
     
     <div class="edit-group">
       <label>タグ</label>
-      <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由">
-      </textarea
+      <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
       <div class="tag-helpers">
         <button class="helper-tag">#作品</button>
         <button class="helper-tag">#アーカイブ</button>
@@ -68,7 +66,12 @@
         <button class="helper-tag">#既発表</button>
       </div>
     </div>
-    <button id="btn-save-edit" style="width:100%; padding:15px; background:var(--text-color); color:var(--bg-color); border:none; font-size:1.2rem; margin-top:20px;">保存</button>
+
+    <div class="edit-actions">
+      <button id="btn-delete-edit" class="btn-danger">削除</button>
+      <button id="btn-copy-edit" class="btn-secondary">コピペ</button>
+      <button id="btn-save-edit" class="btn-primary">変更</button>
+    </div>
   </div>
 
   <script type="module" src="main.js"></script>

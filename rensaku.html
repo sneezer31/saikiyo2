@@ -214,6 +214,65 @@
   let autoScrollSpeedY = 0;
   let autoScrollRAF = null;
 
+  // --- さいきよ2（IndexedDB）連携：?ids= を受け取り並べ替え画面へ直行 ---
+  function loadCardsFromSaikiyo2(ids) {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('saikiyo2_db', 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('cards')) {
+          db.createObjectStore('cards', { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('cards')) {
+          resolve([]);
+          return;
+        }
+        const tx = db.transaction('cards', 'readonly');
+        const store = tx.objectStore('cards');
+        const results = new Array(ids.length);
+        let remaining = ids.length;
+
+        ids.forEach((id, index) => {
+          const req = store.get(id);
+          req.onsuccess = () => {
+            results[index] = req.result || null;
+            remaining--;
+            if (remaining === 0) resolve(results.filter(Boolean));
+          };
+          req.onerror = () => {
+            results[index] = null;
+            remaining--;
+            if (remaining === 0) resolve(results.filter(Boolean));
+          };
+        });
+      };
+      request.onerror = (e) => reject(e);
+    });
+  }
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    const params = new URLSearchParams(window.location.search);
+    const idsParam = params.get('ids');
+    if (!idsParam) return;
+
+    const ids = idsParam.split(',').map(s => Number(s.trim())).filter(n => !Number.isNaN(n));
+    if (ids.length === 0) return;
+
+    try {
+      const cards = await loadCardsFromSaikiyo2(ids);
+      if (cards.length > 0) {
+        inputText.value = cards.map(c => c.content).join('\n\n');
+        goToScreen2();
+      }
+    } catch (err) {
+      console.error('さいきよ2 DB読み込みエラー:', err);
+    }
+  });
+  // ----------------------------------------------------------------------
+
   function goToScreen(screenNumber) {
     screens.forEach((screen, index) => {
       screen.classList.toggle('active', index === screenNumber - 1);
@@ -495,10 +554,10 @@
     }
 
     const sortRect = sortArea.getBoundingClientRect();
-    const dragRect = deskDraggedItem.getBoundingClientRect(); // ★指ではなく短冊の端を判定基準にする
+    const dragRect = deskDraggedItem.getBoundingClientRect();
     const threshold = 60; 
     
-    if (currentDirection === 'vertical') {
+       if (currentDirection === 'vertical') {
       if (dragRect.left < sortRect.left + threshold) {
         let dist = Math.max(0, sortRect.left + threshold - dragRect.left);
         let ratio = Math.min(1, dist / threshold);
@@ -558,15 +617,6 @@
     updateListNumbers();
     updateCustomScrollbar();
   }
-  // --- バケツリレー受け取り処理 ---
-window.addEventListener('DOMContentLoaded', () => {
-  const payload = localStorage.getItem('rensaku_payload');
-  if (payload) {
-    inputText.value = payload;
-    localStorage.removeItem('rensaku_payload');
-    goToScreen2(); // 即座に机へ展開
-  }
-});
 </script>
 </body>
 </html>

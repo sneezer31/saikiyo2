@@ -51,3 +51,12 @@ export function bulkSaveCards(cards) {
     tx.onerror = (e) => reject(e);
   });
 }
+export function deleteCard(id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const request = tx.objectStore(STORE_NAME).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = (e) => reject(e);
+  });
+}
+
