@@ -950,3 +950,160 @@ header button {
   background: var(--text-color);
   color: var(--bg-color);
 }
+/* --- ステップD：白黒テーマ・カスタムカラーパレット・日付ジャンプ・パスワード扉 --- */
+body[data-theme="monochrome"] {
+  --bg-color: #FFFFFF;
+  --text-color: #111111;
+  --muted-color: #666666;
+  --header-bg: #E0E0E0;
+  --footer-bg: rgba(224, 224, 224, 0.90);
+  --console-bg: rgba(255, 255, 255, 0.98);
+  --surface-bg: #FFFFFF;
+  --border-subtle: #CCCCCC;
+}
+
+/* 初代銀鼠の黄金比へ同期 */
+body[data-theme="ginnezumi"] {
+  --bg-color: #FFFCF5;
+  --text-color: #595857;
+  --muted-color: #84817D;
+  --header-bg: #F0EBE1;
+  --footer-bg: rgba(240, 235, 225, 0.90);
+  --console-bg: rgba(255, 252, 245, 0.98);
+  --surface-bg: #FFFFFF;
+  --border-subtle: #D4CEC3;
+}
+
+.seg-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.custom-palette-box {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--header-bg);
+  border: 1px solid var(--text-color);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.palette-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.palette-label {
+  font-size: 0.88rem;
+  font-weight: bold;
+}
+.palette-triplets {
+  display: flex;
+  gap: 8px;
+}
+.color-swatch-input {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--text-color);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+.color-swatch-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.color-swatch-input::-webkit-color-swatch {
+  border: none;
+}
+
+.date-jump-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.jump-btn {
+  flex: 0 0 auto !important;
+  padding: 0 12px !important;
+  font-size: 0.88rem !important;
+}
+.config-side-btn {
+  flex: 0 0 80px !important;
+}
+
+/* パスワード付きの扉・初回セットアップ */
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-color);
+  color: var(--text-color);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.auth-box {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+}
+.auth-box h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.auth-desc {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.auth-desc span {
+  font-size: 0.82rem;
+  color: var(--muted-color);
+}
+.auth-input {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.2rem;
+  font-family: inherit;
+  text-align: center;
+  background: var(--surface-bg);
+  color: var(--text-color);
+  border: 1px solid var(--text-color);
+  border-radius: var(--radius);
+  box-sizing: border-box;
+}
+.auth-btn-row {
+  display: flex;
+  gap: 10px;
+}
+.auth-input-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.auth-btn {
+  flex: 1;
+  padding: 14px;
+  font-size: 1.05rem;
+  font-weight: bold;
+  font-family: inherit;
+  border: 1px solid var(--text-color);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.auth-btn.primary {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
+.auth-btn.secondary {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
