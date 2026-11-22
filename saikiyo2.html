@@ -45,7 +45,12 @@
       <h2>プロパティ編集</h2>
       <button id="btn-close-edit">戻る</button>
     </div>
-    <div id="edit-timestamp"></div>
+
+    <div class="edit-group" id="edit-timestamp-group">
+      <label>作成日</label>
+      <div id="edit-timestamp" class="edit-meta-box"></div>
+    </div>
+
     <div class="edit-readonly" id="edit-content-view" style="margin-bottom:15px; padding:10px; background:#f0f0f0; font-size:1.1rem; white-space:pre-wrap;"></div>
     
     <div class="edit-group">
@@ -58,6 +63,7 @@
       <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
       <div class="tag-helpers">
         <button class="helper-tag">#作品</button>
+        <button class="helper-tag">#メモ</button>
         <button class="helper-tag">#アーカイブ</button>
         <button class="helper-tag">#ゴミ</button>
         <button class="helper-tag">#未発表</button>
@@ -65,10 +71,15 @@
       </div>
     </div>
 
-    <div class="edit-actions">
-      <button id="btn-delete-edit" class="btn-danger">削除</button>
-      <button id="btn-copy-edit" class="btn-secondary">コピペ</button>
-      <button id="btn-save-edit" class="btn-primary">変更</button>
+    <div class="edit-actions-stack">
+      <div class="edit-actions">
+        <button id="btn-delete-edit" class="btn-danger">削除</button>
+        <button id="btn-copy-edit" class="btn-secondary">コピペ</button>
+      </div>
+      <div class="edit-actions">
+        <button id="btn-shelf-edit" class="btn-secondary">棚に収める</button>
+        <button id="btn-save-edit" class="btn-primary">変更</button>
+      </div>
     </div>
   </div>
 
