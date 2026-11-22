@@ -29,7 +29,8 @@
     <span>ゴミ箱を表示中（ダブルタップで復元・完全削除）</span>
     <button type="button" id="btn-exit-trash-mode">通常へ戻る</button>
   </div>
-<!-- 検索・推敲固定中インジケータ -->
+
+  <!-- 検索・推敲固定中インジケータ -->
   <div id="search-mode-banner" style="display: none;">
     <span id="search-banner-text">検索中</span>
     <div class="search-banner-actions">
@@ -37,6 +38,7 @@
       <button type="button" id="btn-search-banner-reset">解除</button>
     </div>
   </div>
+
   <main id="timeline"></main>
 
   <div id="footer-bar">
@@ -160,6 +162,15 @@
     </section>
 
     <section class="wing-section">
+      <h3>日付ジャンプ</h3>
+      <div class="date-jump-row">
+        <input type="date" id="date-jump-input" class="wing-input">
+        <button type="button" id="btn-date-jump" class="dm-btn primary jump-btn">移動</button>
+        <button type="button" id="btn-jump-latest" class="dm-btn secondary jump-btn">最新へ</button>
+      </div>
+    </section>
+
+    <section class="wing-section">
       <h3>並び順</h3>
       <div class="seg-group">
         <button type="button" class="seg-btn active" data-sort="asc">古い順（下が最新）</button>
@@ -179,16 +190,32 @@
   <!-- 左舷2枚目：設定パネル -->
   <div id="panel-config" class="panel panel-wing">
     <div class="panel-header">
-      <h2>表示設定</h2>
+      <h2>設定</h2>
       <button class="btn-close-wing">閉じる</button>
     </div>
 
     <section class="wing-section">
-      <h3>配色テーマ</h3>
-      <div class="seg-group">
+      <h3>配色テーマ（プリセット）</h3>
+      <div class="seg-group seg-grid-2">
         <button type="button" class="seg-btn" data-config-theme="kinari">生成り</button>
         <button type="button" class="seg-btn" data-config-theme="ginnezumi">銀鼠</button>
+        <button type="button" class="seg-btn" data-config-theme="monochrome">白黒</button>
         <button type="button" class="seg-btn" data-config-theme="sumi">墨（ダーク）</button>
+      </div>
+
+      <div class="custom-palette-box">
+        <div class="palette-row">
+          <div class="palette-label">1色で自動生成</div>
+          <input type="color" id="color-auto-picker" class="color-swatch-input" title="基準色を選択">
+        </div>
+        <div class="palette-row">
+          <div class="palette-label">3色を自作（文字・枠・背景）</div>
+          <div class="palette-triplets">
+            <input type="color" id="color-manual-main" class="color-swatch-input" title="文字色">
+            <input type="color" id="color-manual-sub" class="color-swatch-input" title="副調色（ヘッダー・枠）">
+            <input type="color" id="color-manual-bg" class="color-swatch-input" title="背景色">
+          </div>
+        </div>
       </div>
     </section>
 
@@ -214,6 +241,33 @@
       <div class="seg-group">
         <button type="button" class="seg-btn" data-config-radius="none">なし</button>
         <button type="button" class="seg-btn" data-config-radius="soft">あり</button>
+      </div>
+    </section>
+
+    <section class="wing-section">
+      <h3>アプリ名変更</h3>
+      <div class="dm-clean-row">
+        <input type="text" id="config-app-title" class="wing-input" placeholder="さいきよ2">
+        <button type="button" id="btn-save-app-title" class="dm-btn secondary config-side-btn">変更</button>
+      </div>
+    </section>
+
+    <section class="wing-section">
+      <h3>パスワードの扉（合言葉）</h3>
+      <p class="dm-desc">起動時にロック画面を表示します。空欄のまま保存するとロックを解除します。</p>
+      <div class="dm-clean-row">
+        <input type="text" id="config-passphrase" class="wing-input" placeholder="合言葉を入力（空欄で解除）" autocomplete="new-password">
+        <button type="button" id="btn-save-passphrase" class="dm-btn primary config-side-btn">設定</button>
+      </div>
+    </section>
+
+    <section class="wing-section">
+      <h3>画面と初期化</h3>
+      <div class="dm-btn-row">
+        <button type="button" id="btn-toggle-fullscreen" class="dm-btn secondary">全画面表示の切替</button>
+      </div>
+      <div class="dm-btn-row">
+        <button type="button" id="btn-reset-config" class="dm-btn danger-flex">表示設定を初期値に戻す</button>
       </div>
     </section>
   </div>
@@ -336,6 +390,31 @@
           <button id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
           <button id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- パスワード付きの扉（起動時ロック画面） -->
+  <div id="panel-auth" class="auth-overlay" style="display: none;">
+    <div class="auth-box">
+      <h2>合言葉を入力してください</h2>
+      <input type="text" id="auth-input" class="auth-input" placeholder="合言葉" autocomplete="off">
+      <button type="button" id="btn-auth-unlock" class="auth-btn primary">開く</button>
+    </div>
+  </div>
+
+  <!-- 初回セットアップ（扉機能の選択） -->
+  <div id="panel-first-boot" class="auth-overlay" style="display: none;">
+    <div class="auth-box">
+      <h2>初期セットアップ</h2>
+      <p class="auth-desc">起動時にパスワード（合言葉）で画面をロックする機能を使いますか？<br><span>※後から「設定」画面でいつでも変更できます。</span></p>
+      <div id="first-boot-choices" class="auth-btn-row">
+        <button type="button" id="btn-first-boot-skip" class="auth-btn secondary">使わない</button>
+        <button type="button" id="btn-first-boot-use" class="auth-btn primary">使う</button>
+      </div>
+      <div id="first-boot-input-area" class="auth-input-stack" style="display: none;">
+        <input type="text" id="first-boot-pass-input" class="auth-input" placeholder="合言葉を入力" autocomplete="off">
+        <button type="button" id="btn-first-boot-save" class="auth-btn primary">決定して進む</button>
       </div>
     </div>
   </div>
