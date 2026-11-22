@@ -3,6 +3,7 @@
   --text-color: #1A1A1A;
   --header-bg: #EAE6DF;
   --console-bg: rgba(253, 251, 246, 0.98);
+  --header-height: 46px;
   
   /* タイポグラフィ・ポートフォリオ（完璧なメリハリ） */
   --font-small: 0.75rem;
@@ -24,16 +25,27 @@ body {
 
 header {
   flex-shrink: 0;
+  height: var(--header-height);
+  box-sizing: border-box;
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 15px;
+  padding: 0 15px;
   background-color: var(--header-bg);
   border-bottom: 1px solid var(--text-color);
-  z-index: 200;
+  z-index: 320;
 }
-.header-left { display: flex; gap: 15px; }
 header button {
   background: none; border: none; color: var(--text-color);
-  font-size: var(--font-base); cursor: pointer; padding: 0;
+  font-size: var(--font-base); cursor: pointer; padding: 6px 4px;
+}
+.header-wing-btn {
+  min-width: 52px;
+  font-weight: bold;
+}
+#btn-left-wing { text-align: left; }
+#btn-right-wing { text-align: right; }
+.header-wing-btn.is-active {
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 #btn-top { font-weight: bold; font-size: var(--font-base); cursor: pointer; }
 
@@ -74,7 +86,6 @@ header button {
   margin-right: 8px; 
   display: flex; align-items: center;
 }
-/* チェックボックスの箱本体（Flexbox中央揃え） */
 .card-check {
   appearance: none; -webkit-appearance: none;
   width: 20px;
@@ -86,15 +97,12 @@ header button {
   align-items: center;
   justify-content: center;
 }
-
-/* 中身の「□」「☑」 */
 .card-check::before {
   content: "□";
   font-size: 1.0rem;
   color: var(--text-color);
   line-height: 1;
 }
-
 .card-check:checked::before {
   content: "☑";
 }
@@ -142,14 +150,13 @@ header button {
   border-top: 1px solid var(--text-color);
   z-index: 150;
   transform: translateY(120%);
-  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   display: flex; flex-direction: column; gap: 10px;
 }
 #console-area.open {
   transform: translateY(0);
 }
 
-/* 本文入力窓（新CSS兵器による1行圧縮ハック） */
 #input-content {
   width: 100%;
   min-height: 34px; 
@@ -166,7 +173,6 @@ header button {
 }
 #input-content::placeholder { color: #999; }
 
-/* --- コンソール下部 --- */
 .console-bottom {
   display: flex; gap: 5px; 
   align-items: center; 
@@ -199,29 +205,43 @@ header button {
   outline: none; resize: none; overflow: hidden;
 }
 
-/* --- パネル（完全浄化版） --- */
+/* --- パネル共通 --- */
 .panel {
   display: none; 
   position: fixed; 
-  top: 0; 
   left: 0; 
   right: 0;
   bottom: 0;
   background: var(--bg-color); 
-  z-index: 300; 
   padding: 20px; 
   box-sizing: border-box;
   overflow-y: auto;
+}
+.panel-full {
+  top: 0;
+  z-index: 350;
+}
+.panel-wing {
+  top: var(--header-height);
+  z-index: 280;
 }
 .panel.active { display: block; }
 
 .panel-header { 
   display: flex; justify-content: space-between; align-items: center; 
-  border-bottom: 2px solid var(--text-color); margin-bottom: 20px; padding-bottom: 10px; 
+  border-bottom: 2px solid var(--text-color); margin-bottom: 16px; padding-bottom: 10px; 
 }
 .panel-header h2 { margin: 0; font-size: var(--font-base); }
 .panel-header button { background: none; border: none; font-size: var(--font-base); font-weight: bold; cursor: pointer; color: var(--text-color); }
+.panel-header-actions { display: flex; gap: 12px; align-items: center; }
 
+.panel-placeholder-note {
+  color: #666;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* --- 編集パネル --- */
 #edit-timestamp {
   font-size: var(--font-small);
   color: #666;
@@ -247,7 +267,6 @@ header button {
   padding: 5px 12px; font-size: var(--font-base); cursor: pointer;
 }
 
-/* --- 編集パネルの下部アクション群（完全浄化版 2:2:3） --- */
 .edit-actions {
   display: flex;
   gap: 10px;
@@ -275,18 +294,152 @@ header button {
   color: var(--text-color);
   border: 1px solid var(--text-color);
 }
-
 #btn-copy-edit {
   flex: 2;
   background: var(--header-bg);
   color: var(--text-color);
   border: 1px solid var(--text-color);
 }
-
 #btn-save-edit {
   flex: 3; 
   background: var(--text-color);
   color: var(--bg-color);
   border: 1px solid var(--text-color);
   margin: 0; 
+}
+
+/* --- リスト棚パネル（イフリート21式） --- */
+#shelf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shelf-empty {
+  color: #666;
+  font-size: 0.9rem;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.shelf-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  background: #FFF;
+  border-bottom: 1px solid #DDD;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.shelf-row.dragging {
+  opacity: 0.85;
+  background: var(--header-bg);
+  outline: 2px solid var(--text-color);
+}
+
+.shelf-row-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.shelf-row-title {
+  font-weight: bold;
+  font-size: var(--font-base);
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+.shelf-row-meta {
+  font-size: var(--font-small);
+  color: #666;
+}
+
+.shelf-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.shelf-handle {
+  cursor: grab;
+  padding: 6px 10px;
+  font-size: 1.1rem;
+  color: #666;
+  background: var(--header-bg);
+  touch-action: none;
+}
+.shelf-del-btn {
+  background: none;
+  border: 1px solid #999;
+  color: var(--text-color);
+  width: 32px;
+  height: 32px;
+  font-size: 1.0rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* リスト棚：詳細ビュー */
+.shelf-detail-meta {
+  font-size: var(--font-small);
+  color: #666;
+  margin-bottom: 10px;
+}
+.shelf-detail-memo {
+  font-size: 0.9rem;
+  background: var(--header-bg);
+  padding: 10px;
+  margin-bottom: 14px;
+  white-space: pre-wrap;
+}
+.shelf-detail-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.shelf-detail-card {
+  padding: 10px 12px;
+  background: #FFF;
+  border-left: 3px solid var(--text-color);
+}
+.shelf-detail-card-body {
+  font-size: var(--font-base);
+  line-height: var(--line-height);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.shelf-detail-card-sub {
+  font-size: var(--font-small);
+  color: #666;
+  margin-top: 6px;
+}
+
+.shelf-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.shelf-detail-return-row {
+  display: flex;
+  gap: 8px;
+}
+.shelf-act-btn {
+  height: 46px;
+  font-size: var(--font-base);
+  font-weight: bold;
+  border: 1px solid var(--text-color);
+  border-radius: 0;
+  cursor: pointer;
+  flex: 1;
+}
+.shelf-act-btn.secondary {
+  background: var(--header-bg);
+  color: var(--text-color);
+}
+.shelf-act-btn.primary {
+  background: var(--text-color);
+  color: var(--bg-color);
 }
