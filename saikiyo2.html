@@ -9,15 +9,17 @@
 <body>
   <header>
     <button id="btn-left-wing" class="header-wing-btn">表示</button>
-    <button id="btn-top">さいきよ2</button>
-    <button id="btn-right-wing" class="header-wing-btn">管制</button>
+    <div class="header-right-group">
+      <button id="btn-top">さいきよ2</button>
+      <button id="btn-right-wing" class="header-wing-btn">管制</button>
+    </div>
   </header>
 
   <main id="timeline"></main>
 
   <div id="footer-bar">
     <div id="footer-normal">
-      <span class="footer-title">さいきよ2</span>
+      <button id="btn-open-shelf" class="footer-shelf-btn">棚</button>
       <button id="btn-fab">＋</button>
     </div>
     <div id="footer-selection" style="display: none;">
@@ -101,16 +103,61 @@
     <p class="panel-placeholder-note">カラーモード（銀鼠等）・文字サイズ・角丸設定をここに実装予定ロボ。</p>
   </div>
 
-  <!-- 右舷1枚目：管制パネル（仮枠） -->
+  <!-- 右舷：管制パネル -->
   <div id="panel-kansei" class="panel panel-wing">
     <div class="panel-header">
       <h2>管制パネル</h2>
       <button class="btn-close-wing">閉じる</button>
     </div>
-    <p class="panel-placeholder-note">JSON射出（自分宛て共有）・回収・タグ/日付の部分撤収をここに実装予定ロボ。</p>
+
+    <div id="kansei-stats" class="kansei-stats">読み込み中...</div>
+
+    <section class="kansei-section">
+      <h3>データ射出（バックアップ）</h3>
+      <p class="kansei-desc">全カードとリスト棚を丸ごとJSON形式で書き出します。</p>
+      <div class="kansei-btn-row">
+        <button id="btn-export-file" class="kansei-btn primary">JSONファイル保存</button>
+        <button id="btn-export-copy" class="kansei-btn secondary">テキストをコピー</button>
+      </div>
+    </section>
+
+    <section class="kansei-section">
+      <h3>データ回収（復元・統合）</h3>
+      <p class="kansei-desc">既存データは消さず、ID単位で統合（マージ）します。</p>
+      <div class="kansei-btn-row">
+        <button id="btn-import-file" class="kansei-btn secondary">JSONファイルから回収</button>
+        <input type="file" id="input-import-file" accept=".json,application/json" style="display: none;">
+      </div>
+      <textarea id="input-import-text" class="kansei-textarea" rows="3" placeholder="コピーしたJSONテキストをここに貼り付けて回収することもできます"></textarea>
+      <button id="btn-import-text" class="kansei-btn secondary full-width">貼り付けテキストから回収</button>
+    </section>
+
+    <section class="kansei-section">
+      <h3>掃除・部分撤収（カード削除）</h3>
+      <div class="kansei-clean-block">
+        <label>タグで一括撤収</label>
+        <div class="kansei-clean-row">
+          <input type="text" id="input-clean-tag" class="kansei-input" placeholder="例: #ゴミ">
+          <button id="btn-clean-tag" class="kansei-btn danger">撤収</button>
+        </div>
+        <div class="kansei-tag-chips">
+          <button type="button" class="kansei-chip" data-tag="#ゴミ">#ゴミ</button>
+          <button type="button" class="kansei-chip" data-tag="#アーカイブ">#アーカイブ</button>
+          <button type="button" class="kansei-chip" data-tag="#既発表">#既発表</button>
+        </div>
+      </div>
+
+      <div class="kansei-clean-block">
+        <label>指定日より前のカードを一括撤収</label>
+        <div class="kansei-clean-row">
+          <input type="date" id="input-clean-date" class="kansei-input">
+          <button id="btn-clean-date" class="kansei-btn danger">撤収</button>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <!-- 右舷2枚目：リスト棚パネル -->
+  <!-- リスト棚パネル（フッター左から直行） -->
   <div id="panel-shelf" class="panel panel-wing">
     <div id="shelf-list-view">
       <div class="panel-header">
