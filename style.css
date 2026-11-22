@@ -910,3 +910,43 @@ header button {
   word-break: break-all;
   padding: 8px 4px 60px 4px;
 }
+/* --- ステップC：ギアチェンジ式検索（検索・推敲固定バー＆ボタン状態） --- */
+#search-mode-banner {
+  flex-shrink: 0;
+  background: var(--header-bg);
+  color: var(--text-color);
+  border-bottom: 1px solid var(--text-color);
+  padding: 7px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.search-banner-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#search-mode-banner button {
+  background: var(--text-color);
+  color: var(--bg-color);
+  border: 1px solid var(--text-color);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+}
+#btn-search-banner-reset {
+  background: var(--bg-color) !important;
+  color: var(--text-color) !important;
+}
+
+#btn-search.is-searching,
+#btn-search.is-suiko {
+  background: var(--text-color);
+  color: var(--bg-color);
+}
