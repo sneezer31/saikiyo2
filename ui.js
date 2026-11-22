@@ -74,12 +74,18 @@ export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit, sho
 }
 
 export function updateSelectionBarUI(selectedCount, DOM) {
+  const isConsoleOpen = DOM.consoleArea.classList.contains('open');
+
   if (selectedCount > 0) {
-    DOM.footerNormal.style.display = 'none';
-    DOM.footerSelection.style.display = 'flex';
-    DOM.selectionCount.textContent = `${selectedCount}件選択中`;
+    DOM.selectionDock.classList.add('open');
+    DOM.selectionDock.setAttribute('aria-hidden', 'false');
+    DOM.selectionCount.textContent = `${selectedCount}件選択`;
+    DOM.footerBar.style.display = 'none';
   } else {
-    DOM.footerNormal.style.display = 'flex';
-    DOM.footerSelection.style.display = 'none';
+    DOM.selectionDock.classList.remove('open');
+    DOM.selectionDock.setAttribute('aria-hidden', 'true');
+    if (!isConsoleOpen) {
+      DOM.footerBar.style.display = 'block';
+    }
   }
 }
