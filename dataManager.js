@@ -27,16 +27,13 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     inputImportFile: document.getElementById('input-import-file'),
     inputImportText: document.getElementById('input-import-text'),
     btnImportText: document.getElementById('btn-import-text'),
-    // テキスト一括取り込み
     inputBulkText: document.getElementById('input-bulk-text'),
     inputBulkTags: document.getElementById('input-bulk-tags'),
     btnBulkImport: document.getElementById('btn-bulk-import'),
-    // 期間指定
     inputRangeStart: document.getElementById('input-range-start'),
     inputRangeEnd: document.getElementById('input-range-end'),
     btnRangeExport: document.getElementById('btn-range-export'),
     btnRangeTrash: document.getElementById('btn-range-trash'),
-    // タグ整理・重複整理
     inputCleanTag: document.getElementById('input-clean-tag'),
     btnCleanTag: document.getElementById('btn-clean-tag'),
     btnDedupeCards: document.getElementById('btn-dedupe-cards')
@@ -47,7 +44,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     const activeCount = cards.filter(c => !c.deletedAt).length;
     const trashCount = cards.length - activeCount;
 
-    DOM.stats.textContent = `保存中：カード ${activeCount} 件（ゴミ箱 ${trashCount} 件） ／ リスト棚 ${shelves.length} 件`;
+    DOM.stats.textContent = `保存中：カード ${activeCount} 件（ゴミ箱 ${trashCount} 件） ／ 書庫 ${shelves.length} 件`;
 
     if (DOM.dmTrashStatus && DOM.btnEmptyTrash) {
       if (trashCount === 0) {
@@ -94,7 +91,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     URL.revokeObjectURL(url);
   }
 
-  // --- 月イチ念押しチェック ---
   async function checkMonthlyTrashReminder() {
     if (!DOM.trashRemindBar) return;
     const cards = await loadAllCards();
@@ -120,7 +116,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     }
   }
 
-  // バックアップを書き出してからゴミ箱を完全削除（念押し付き）
   async function emptyTrashWithBackup() {
     const cards = await loadAllCards();
     const trashCards = cards.filter(c => Boolean(c.deletedAt));
@@ -166,7 +161,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
   }
 
-  // --- 共有・ファイル保存・コピー ---
   if (DOM.btnExportShare) {
     DOM.btnExportShare.addEventListener('click', async () => {
       const payload = await buildBackupPayload();
@@ -179,7 +173,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
           await navigator.share({
             files: [file],
             title: `さいきよ2 バックアップ (${fileName})`,
-            text: `カード ${payload.cards.length} 件 ／ リスト棚 ${payload.shelves.length} 件`
+            text: `カード ${payload.cards.length} 件 ／ 書庫 ${payload.shelves.length} 件`
           });
           return;
         } catch (err) {
@@ -203,13 +197,12 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     const jsonStr = JSON.stringify(payload);
     try {
       await navigator.clipboard.writeText(jsonStr);
-      alert(`バックアップ用データ（カード${payload.cards.length}件・棚${payload.shelves.length}件）をコピーしました。`);
+      alert(`バックアップ用データ（カード${payload.cards.length}件・書庫${payload.shelves.length}件）をコピーしました。`);
     } catch (_) {
       alert('コピーに失敗しました。');
     }
   });
 
-  // --- 正規化＆初代互換インポート ---
   function normalizeTags(rawTags, status, publishStatus) {
     const tagSet = new Set();
 
@@ -402,12 +395,12 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     await updateStats();
     await checkMonthlyTrashReminder();
 
-    let summary = `復元が完了しました。\n・カード：${cardsToImport.length} 件\n・リスト棚：${shelvesToImport.length} 件`;
+    let summary = `復元が完了しました。\n・カード：${cardsToImport.length} 件\n・書庫：${shelvesToImport.length} 件`;
     if (legacyListCount > 0) {
       summary += `（うち初代リストから自動変換：${legacyListCount} 件）`;
     }
     if (totalMissingRefs > 0) {
-      summary += `\n※リスト内の元カードIDが見つからなかった項目：${totalMissingRefs} 件`;
+      summary += `\n※書庫内の元カードIDが見つからなかった項目：${totalMissingRefs} 件`;
     }
     alert(summary);
   }
@@ -434,7 +427,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     DOM.inputImportText.value = '';
   });
 
-  // --- 1. テキスト一括取り込み（空行区切り） ---
   if (DOM.btnBulkImport) {
     DOM.btnBulkImport.addEventListener('click', async () => {
       const raw = DOM.inputBulkText.value;
@@ -474,7 +466,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
   }
 
-  // --- 2. 期間指定の書き出し・整理（分刻み） ---
   async function getCardsInSelectedRange() {
     const startVal = DOM.inputRangeStart ? DOM.inputRangeStart.value : '';
     const endVal = DOM.inputRangeEnd ? DOM.inputRangeEnd.value : '';
@@ -560,7 +551,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
   }
 
-  // --- 3. タグ整理（論理削除）＆ 重複カードの整理 ---
   document.querySelectorAll('.dm-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       DOM.inputCleanTag.value = btn.dataset.tag;
@@ -630,7 +620,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       const trashedDuplicates = duplicates.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
       await bulkSaveCards(trashedDuplicates);
 
-      // リスト棚内の原本ID参照も古いIDへ修復
       const allShelves = await loadAllShelves();
       const updatedShelves = [];
       allShelves.forEach(shelf => {
@@ -655,7 +644,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       await onDataChanged();
       await updateStats();
 
-      const shelfNote = updatedShelves.length > 0 ? `（リスト棚 ${updatedShelves.length} 件の参照IDも修復）` : '';
+      const shelfNote = updatedShelves.length > 0 ? `（書庫 ${updatedShelves.length} 件の参照IDも修復）` : '';
       alert(`重複カード ${duplicates.length} 件をゴミ箱へ移動しました。${shelfNote}`);
     });
   }
