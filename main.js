@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（スクロール位置記憶・日付ジャンプ・ギアチェンジ式検索・選択ドック・論理削除・設定モジュール連携） */
+/** さいきよ2 - メイン司令塔（左上アコーディオン・状態表示ボタン・書庫・ギアチェンジ検索・大型選択ドック） */
 
 import {
   initDB,
@@ -28,12 +28,14 @@ let state = {
   lastRenderedIds: [],
   editingCardId: null,
   batchOriginalTags: new Set(),
-  activeWing: null           // null | 'display' | 'config' | 'data' | 'shelf'
+  activeWing: null,          // null | 'display' | 'design' | 'config' | 'data' | 'shelf'
+  isAccordionOpen: false
 };
 
 const DOM = {
   timeline: document.getElementById('timeline'),
   btnLeftWing: document.getElementById('btn-left-wing'),
+  leftAccordion: document.getElementById('left-wing-accordion'),
   btnTop: document.getElementById('btn-top'),
   btnRightWing: document.getElementById('btn-right-wing'),
   btnOpenShelf: document.getElementById('btn-open-shelf'),
@@ -81,6 +83,7 @@ const DOM = {
   btnCloseReader: document.getElementById('btn-close-reader'),
   // ウィングパネル
   panelDisplay: document.getElementById('panel-display'),
+  panelDesign: document.getElementById('panel-design'),
   panelConfig: document.getElementById('panel-config'),
   panelData: document.getElementById('panel-data'),
   panelShelf: document.getElementById('panel-shelf'),
@@ -144,9 +147,10 @@ const searchModule = initSearchModule({
   }
 });
 
-// --- ウィングパネル制御 ---
+// --- ウィングパネル＆左上アコーディオン制御 ---
 const wingPanels = {
   display: DOM.panelDisplay,
+  design: DOM.panelDesign,
   config: DOM.panelConfig,
   data: DOM.panelData,
   shelf: DOM.panelShelf
@@ -161,26 +165,54 @@ function hasActiveFilter() {
   );
 }
 
+function setAccordionOpen(open) {
+  state.isAccordionOpen = open;
+  if (DOM.leftAccordion) {
+    DOM.leftAccordion.classList.toggle('open', open);
+    DOM.leftAccordion.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+  if (DOM.btnLeftWing) {
+    DOM.btnLeftWing.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  updateHeaderWingButtons();
+}
+
 function updateHeaderWingButtons() {
   const filterMark = hasActiveFilter() ? '●' : '';
+  const arrow = state.isAccordionOpen ? '▴' : '▾';
 
-  if (state.activeWing === 'display' || state.activeWing === 'config') {
-    DOM.btnLeftWing.textContent = '設定';
-    DOM.btnLeftWing.classList.add('is-active');
-  } else if (state.viewScope === 'trash') {
-    DOM.btnLeftWing.textContent = `表示(ゴミ箱)${filterMark}`;
-    DOM.btnLeftWing.classList.remove('is-active');
-  } else {
-    DOM.btnLeftWing.textContent = `表示${filterMark}`;
-    DOM.btnLeftWing.classList.remove('is-active');
+  let currentLabel = state.viewScope === 'trash' ? `ゴミ箱${filterMark}` : `タイムライン${filterMark}`;
+  let isLeftPanelActive = false;
+
+  if (state.activeWing === 'display') {
+    currentLabel = `表示${filterMark}`;
+    isLeftPanelActive = true;
+  } else if (state.activeWing === 'design') {
+    currentLabel = '設定';
+    isLeftPanelActive = true;
+  } else if (state.activeWing === 'config') {
+    currentLabel = 'コンフィグ';
+    isLeftPanelActive = true;
   }
+
+  DOM.btnLeftWing.textContent = `${currentLabel} ${arrow}`;
+  DOM.btnLeftWing.classList.toggle('is-active', isLeftPanelActive || state.isAccordionOpen);
+
+  // アコーディオン内のアクティブ項目を現在状態に同期
+  const activeKey = (state.activeWing === 'display' || state.activeWing === 'design' || state.activeWing === 'config')
+    ? state.activeWing
+    : 'none';
+  document.querySelectorAll('.accordion-item').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.wingTarget === activeKey);
+  });
 
   DOM.btnRightWing.classList.toggle('is-active', state.activeWing === 'data');
   DOM.trashModeBanner.style.display = state.viewScope === 'trash' ? 'flex' : 'none';
 }
 
 async function openWing(wingName) {
-  Object.values(wingPanels).forEach(p => p.classList.remove('active'));
+  setAccordionOpen(false);
+  Object.values(wingPanels).forEach(p => { if (p) p.classList.remove('active'); });
   state.activeWing = wingName;
 
   if (wingName && wingPanels[wingName]) {
@@ -200,10 +232,28 @@ function closeAllWings() {
   openWing(null);
 }
 
-DOM.btnLeftWing.addEventListener('click', () => {
-  if (state.activeWing === 'display') openWing('config');
-  else if (state.activeWing === 'config') closeAllWings();
-  else openWing('display');
+// 左上ボタン：アコーディオンの開閉トグル
+DOM.btnLeftWing.addEventListener('click', (e) => {
+  e.stopPropagation();
+  setAccordionOpen(!state.isAccordionOpen);
+});
+
+// アコーディオン各項目の選択
+document.querySelectorAll('.accordion-item').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const target = btn.dataset.wingTarget;
+    if (target === 'none') closeAllWings();
+    else await openWing(target);
+  });
+});
+
+// アコーディオン外をクリックしたら閉じる
+document.addEventListener('click', (e) => {
+  if (!state.isAccordionOpen) return;
+  if (DOM.leftAccordion && DOM.leftAccordion.contains(e.target)) return;
+  if (DOM.btnLeftWing && DOM.btnLeftWing.contains(e.target)) return;
+  setAccordionOpen(false);
 });
 
 DOM.btnRightWing.addEventListener('click', () => {
@@ -229,12 +279,12 @@ DOM.btnExitTrashMode.addEventListener('click', async () => {
 });
 
 DOM.btnTop.addEventListener('click', () => {
-  if (state.activeWing) closeAllWings();
+  if (state.activeWing || state.isAccordionOpen) closeAllWings();
   const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
   DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
 });
 
-// --- 日付ジャンプ（タイムマシン） ---
+// --- 日付ジャンプ ---
 if (DOM.btnDateJump) {
   DOM.btnDateJump.addEventListener('click', () => {
     const val = DOM.dateJumpInput ? DOM.dateJumpInput.value : '';
@@ -442,7 +492,7 @@ document.querySelectorAll('[data-memo-mode]').forEach(btn => {
   });
 });
 
-// --- コンソール＆タイムライン（スマート追従：過去作閲覧中は動かさない） ---
+// --- コンソール＆タイムライン ---
 function adjustTimelinePadding({ allowAutoScroll = true } = {}) {
   const wasAtLatest = isTimelineAtLatest();
   const isConsoleOpen = DOM.consoleArea.classList.contains('open');
@@ -603,7 +653,7 @@ DOM.btnReaderCopy.addEventListener('click', async () => {
   }
 });
 
-// --- 詳細・編集パネル（一括タグ差分更新・論理削除＆復元・鑑賞モード） ---
+// --- 詳細・編集パネル ---
 function configureEditTrashButtons(isTrashMode) {
   DOM.editRestoreRow.style.display = isTrashMode ? 'flex' : 'none';
   DOM.btnDeleteEdit.textContent = isTrashMode ? '完全削除' : 'ゴミ箱へ';
@@ -814,7 +864,7 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
   }
 
   await shelfModule.updateBadge();
-  alert('棚に収めました。');
+  alert('書庫に収めました。');
 });
 
 DOM.btnDeleteEdit.addEventListener('click', async () => {
@@ -873,7 +923,6 @@ window.addEventListener('DOMContentLoaded', async () => {
   adjustTimelinePadding({ allowAutoScroll: false });
   await renderTimeline({ forceBottom: true });
 
-  // 前回のスクロール位置を復元（未保存ならそのまま最新位置）
   const savedScroll = localStorage.getItem(SCROLL_POS_KEY);
   if (savedScroll !== null) {
     const pos = parseInt(savedScroll, 10);
