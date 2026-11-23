@@ -1,4 +1,4 @@
-/** さいきよ2 - リスト棚モジュール（一覧・D&D並べ替え・詳細・TL返却） */
+/** さいきよ2 - 書庫モジュール（シンプル削除・本格D&D並べ替え＋時速百キロ根絶エッジスクロール・詳細・TL返却） */
 
 import {
   saveCard,
@@ -11,15 +11,30 @@ import {
 import { formatDateWithWeekday } from './ui.js';
 
 export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
-  const selectedShelfIds = new Set();
   let currentDetailShelfId = null;
-  let draggingShelfRow = null;
+
+  // ドラッグ＆ドロップ状態（初代さいきよ準拠＋時間ベース穏やかエッジスクロール）
+  const drag = {
+    item: null,
+    placeholder: null,
+    isDragging: false,
+    timer: null,
+    startX: 0,
+    startY: 0,
+    origLeft: 0,
+    offsetY: 0,
+    lastY: 0,
+    lastMoveTime: 0,
+    scrollSpeedPxPerSec: 0,
+    lastFrameTime: 0,
+    rafId: null
+  };
 
   const DOM = {
+    panelShelf: document.getElementById('panel-shelf'),
     btnOpenShelf: document.getElementById('btn-open-shelf'),
     shelfListView: document.getElementById('shelf-list-view'),
     shelfList: document.getElementById('shelf-list'),
-    btnShelfBulkDelete: document.getElementById('btn-shelf-bulk-delete'),
     shelfDetailView: document.getElementById('shelf-detail-view'),
     shelfDetailTitle: document.getElementById('shelf-detail-title'),
     shelfDetailMeta: document.getElementById('shelf-detail-meta'),
@@ -31,18 +46,14 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
     btnShelfReturnBlock: document.getElementById('btn-shelf-return-block')
   };
 
-  async function updateBadge() {
-    const shelves = await loadAllShelves();
-    DOM.btnOpenShelf.textContent = shelves.length > 0 ? `棚(${shelves.length})` : '棚';
-  }
+  // HTML側に残っている一括削除ボタンがあれば撤去
+  const legacyBulkBtn = document.getElementById('btn-shelf-bulk-delete');
+  if (legacyBulkBtn) legacyBulkBtn.remove();
 
-  function updateBulkDeleteBtn() {
-    const count = selectedShelfIds.size;
-    if (count > 0) {
-      DOM.btnShelfBulkDelete.style.display = 'inline-block';
-      DOM.btnShelfBulkDelete.textContent = `削除(${count})`;
-    } else {
-      DOM.btnShelfBulkDelete.style.display = 'none';
+  // フッター表示は件数を出さず常に「書庫」のみ
+  async function updateBadge() {
+    if (DOM.btnOpenShelf) {
+      DOM.btnOpenShelf.textContent = '書庫';
     }
   }
 
@@ -57,9 +68,7 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
     DOM.shelfList.innerHTML = '';
 
     if (shelves.length === 0) {
-      DOM.shelfList.innerHTML = '<div class="shelf-empty">リスト棚は空です。<br>カードを選んで「机へ」または編集画面の「棚に収める」から保管できます。</div>';
-      selectedShelfIds.clear();
-      updateBulkDeleteBtn();
+      DOM.shelfList.innerHTML = '<div class="shelf-empty">書庫は空です。<br>カードを選んで「机へ」または編集画面の「書庫に収める」から保管できます。</div>';
       return;
     }
 
@@ -69,16 +78,6 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
       const row = document.createElement('div');
       row.className = 'shelf-row';
       row.dataset.id = shelf.id;
-
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      chk.className = 'card-check';
-      chk.checked = selectedShelfIds.has(shelf.id);
-      chk.addEventListener('change', (e) => {
-        if (e.target.checked) selectedShelfIds.add(shelf.id);
-        else selectedShelfIds.delete(shelf.id);
-        updateBulkDeleteBtn();
-      });
 
       const main = document.createElement('div');
       main.className = 'shelf-row-main';
@@ -96,7 +95,10 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
 
       main.appendChild(titleEl);
       main.appendChild(metaEl);
-      main.addEventListener('click', () => openDetail(shelf.id));
+      main.addEventListener('click', () => {
+        if (drag.isDragging) return;
+        openDetail(shelf.id);
+      });
 
       const controls = document.createElement('div');
       controls.className = 'shelf-row-controls';
@@ -104,16 +106,17 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
       const handle = document.createElement('div');
       handle.className = 'shelf-handle';
       handle.innerHTML = '&#9776;';
-      handle.addEventListener('pointerdown', (e) => startDrag(e, row));
+      handle.addEventListener('pointerdown', (e) => handlePointerDown(e, row));
 
       const delBtn = document.createElement('button');
+      delBtn.type = 'button';
       delBtn.className = 'shelf-del-btn';
       delBtn.textContent = '×';
-      delBtn.addEventListener('click', async () => {
-        if (confirm(`「${shelf.title || '無題'}」を棚から削除しますか？`)) {
+      delBtn.title = '書庫から削除';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm(`「${shelf.title || '無題'}」を書庫から削除しますか？`)) {
           await deleteShelf(shelf.id);
-          selectedShelfIds.delete(shelf.id);
-          updateBulkDeleteBtn();
           await renderList();
           await updateBadge();
         }
@@ -122,54 +125,182 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
       controls.appendChild(handle);
       controls.appendChild(delBtn);
 
-      row.appendChild(chk);
       row.appendChild(main);
       row.appendChild(controls);
       DOM.shelfList.appendChild(row);
     });
-
-    updateBulkDeleteBtn();
   }
 
-  function startDrag(e, row) {
-    e.preventDefault();
-    draggingShelfRow = row;
-    row.classList.add('dragging');
+  // --- 本格D&D（250ms長押し・抜け殻・穏やか可変速エッジスクロール） ---
+  function handlePointerDown(e, row) {
+    if (e.button !== 0 && e.type !== 'touchstart') return;
 
-    document.addEventListener('pointermove', onDragMove, { passive: false });
-    document.addEventListener('pointerup', onDragEnd);
-    document.addEventListener('pointercancel', onDragEnd);
+    drag.item = row;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.isDragging = false;
+
+    drag.timer = setTimeout(() => startDrag(e), 250);
+
+    document.addEventListener('pointermove', checkDragThreshold, { passive: true });
+    document.addEventListener('pointerup', cancelPreDrag);
+    document.addEventListener('pointercancel', cancelPreDrag);
   }
 
-  function onDragMove(e) {
-    if (!draggingShelfRow) return;
-    e.preventDefault();
+  function checkDragThreshold(e) {
+    if (!drag.item || drag.isDragging) return;
+    if (Math.abs(e.clientX - drag.startX) > 10 || Math.abs(e.clientY - drag.startY) > 10) {
+      cancelPreDrag();
+    }
+  }
 
-    const rows = Array.from(DOM.shelfList.querySelectorAll('.shelf-row:not(.dragging)'));
-    const y = e.clientY;
-    let inserted = false;
+  function cancelPreDrag() {
+    clearTimeout(drag.timer);
+    drag.timer = null;
+    drag.item = null;
+    removePreDragListeners();
+  }
 
-    for (const target of rows) {
-      const rect = target.getBoundingClientRect();
-      if (y < rect.top + rect.height / 2) {
-        DOM.shelfList.insertBefore(draggingShelfRow, target);
-        inserted = true;
-        break;
+  function removePreDragListeners() {
+    document.removeEventListener('pointermove', checkDragThreshold);
+    document.removeEventListener('pointerup', cancelPreDrag);
+    document.removeEventListener('pointercancel', cancelPreDrag);
+  }
+
+  function startDrag(e) {
+    if (!drag.item) return;
+    drag.isDragging = true;
+    removePreDragListeners();
+
+    const rect = drag.item.getBoundingClientRect();
+    drag.origLeft = rect.left;
+    drag.offsetY = e.clientY - rect.top;
+    drag.lastY = e.clientY;
+
+    drag.placeholder = document.createElement('div');
+    drag.placeholder.className = 'shelf-placeholder';
+    drag.placeholder.style.height = `${rect.height}px`;
+    DOM.shelfList.insertBefore(drag.placeholder, drag.item);
+
+    drag.item.classList.add('dragging');
+    drag.item.style.width = `${rect.width}px`;
+    drag.item.style.height = `${rect.height}px`;
+    drag.item.style.left = `${rect.left}px`;
+    drag.item.style.top = `${rect.top}px`;
+
+    document.body.appendChild(drag.item);
+    if (navigator.vibrate) navigator.vibrate(35);
+
+    document.addEventListener('pointermove', handlePointerMove, { passive: false });
+    document.addEventListener('pointerup', handlePointerUp);
+    document.addEventListener('pointercancel', handlePointerUp);
+  }
+
+  function checkIntersection() {
+    if (!drag.item || !drag.placeholder) return;
+
+    const checkX = drag.origLeft + (drag.item.offsetWidth / 2);
+    const checkY = drag.lastY;
+    const elements = document.elementsFromPoint(checkX, checkY);
+    const target = elements.find(
+      el => el.classList && el.classList.contains('shelf-row') && el.parentNode === DOM.shelfList
+    );
+
+    if (target && target !== drag.placeholder && target !== drag.item) {
+      const targetRect = target.getBoundingClientRect();
+      if (checkY < targetRect.top + targetRect.height / 2) {
+        DOM.shelfList.insertBefore(drag.placeholder, target);
+      } else {
+        DOM.shelfList.insertBefore(drag.placeholder, target.nextSibling);
+      }
+    } else if (!target) {
+      const listRect = DOM.shelfList.getBoundingClientRect();
+      if (checkY > listRect.bottom) {
+        DOM.shelfList.appendChild(drag.placeholder);
+      } else if (checkY < listRect.top && DOM.shelfList.firstChild) {
+        DOM.shelfList.insertBefore(drag.placeholder, DOM.shelfList.firstChild);
       }
     }
-    if (!inserted) {
-      DOM.shelfList.appendChild(draggingShelfRow);
-    }
   }
 
-  async function onDragEnd() {
-    if (!draggingShelfRow) return;
-    draggingShelfRow.classList.remove('dragging');
-    draggingShelfRow = null;
+  function stepAutoScroll(now) {
+    if (!drag.isDragging || drag.scrollSpeedPxPerSec === 0) {
+      drag.rafId = null;
+      drag.lastFrameTime = 0;
+      return;
+    }
 
-    document.removeEventListener('pointermove', onDragMove);
-    document.removeEventListener('pointerup', onDragEnd);
-    document.removeEventListener('pointercancel', onDragEnd);
+    if (!drag.lastFrameTime) drag.lastFrameTime = now;
+    const dt = Math.min(0.05, (now - drag.lastFrameTime) / 1000);
+    drag.lastFrameTime = now;
+
+    DOM.panelShelf.scrollTop += drag.scrollSpeedPxPerSec * dt;
+    checkIntersection();
+    drag.rafId = requestAnimationFrame(stepAutoScroll);
+  }
+
+  function handlePointerMove(e) {
+    if (!drag.isDragging || !drag.item) return;
+    e.preventDefault();
+
+    const now = Date.now();
+    if (now - drag.lastMoveTime < 16) return;
+    drag.lastMoveTime = now;
+
+    drag.lastY = e.clientY;
+    drag.item.style.left = `${drag.origLeft}px`;
+    drag.item.style.top = `${e.clientY - drag.offsetY}px`;
+
+    // 枠線付近のエッジスクロール：時間ベース＋二乗カーブ＋上限クランプ（時速百キロ根絶）
+    const panelRect = DOM.panelShelf.getBoundingClientRect();
+    const dragRect = drag.item.getBoundingClientRect();
+    const threshold = 72;
+    const minSpeed = 70;   // px/sec（枠に触れた直後はゆっくり）
+    const maxSpeed = 300;  // px/sec（最大でも目で追える穏やかな上限）
+
+    if (dragRect.top < panelRect.top + threshold) {
+      const over = Math.max(0, (panelRect.top + threshold) - dragRect.top);
+      const ratio = Math.min(1, over / threshold);
+      drag.scrollSpeedPxPerSec = -(minSpeed + (maxSpeed - minSpeed) * ratio * ratio);
+    } else if (dragRect.bottom > panelRect.bottom - threshold) {
+      const over = Math.max(0, dragRect.bottom - (panelRect.bottom - threshold));
+      const ratio = Math.min(1, over / threshold);
+      drag.scrollSpeedPxPerSec = minSpeed + (maxSpeed - minSpeed) * ratio * ratio;
+    } else {
+      drag.scrollSpeedPxPerSec = 0;
+    }
+
+    if (drag.scrollSpeedPxPerSec !== 0 && !drag.rafId) {
+      drag.lastFrameTime = 0;
+      drag.rafId = requestAnimationFrame(stepAutoScroll);
+    }
+
+    checkIntersection();
+  }
+
+  async function handlePointerUp() {
+    if (!drag.isDragging || !drag.item) return;
+
+    drag.scrollSpeedPxPerSec = 0;
+    if (drag.rafId) {
+      cancelAnimationFrame(drag.rafId);
+      drag.rafId = null;
+    }
+    drag.lastFrameTime = 0;
+
+    DOM.shelfList.insertBefore(drag.item, drag.placeholder);
+    drag.placeholder.remove();
+    drag.placeholder = null;
+
+    drag.item.classList.remove('dragging');
+    drag.item.style.cssText = '';
+
+    document.removeEventListener('pointermove', handlePointerMove);
+    document.removeEventListener('pointerup', handlePointerUp);
+    document.removeEventListener('pointercancel', handlePointerUp);
+
+    drag.item = null;
+    drag.isDragging = false;
 
     const ids = Array.from(DOM.shelfList.querySelectorAll('.shelf-row')).map(el => Number(el.dataset.id));
     const shelves = (await Promise.all(ids.map(id => getShelf(id)))).filter(Boolean);
@@ -179,17 +310,7 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
     await bulkSaveShelves(shelves);
   }
 
-  DOM.btnShelfBulkDelete.addEventListener('click', async () => {
-    if (selectedShelfIds.size === 0) return;
-    if (!confirm(`選択した ${selectedShelfIds.size} 件のリストを棚から削除しますか？`)) return;
-
-    await Promise.all(Array.from(selectedShelfIds).map(id => deleteShelf(id)));
-    selectedShelfIds.clear();
-    updateBulkDeleteBtn();
-    await renderList();
-    await updateBadge();
-  });
-
+  // --- 書庫詳細ビュー＆タイムライン返却 ---
   async function openDetail(shelfId) {
     const shelf = await getShelf(shelfId);
     if (!shelf) return;
@@ -260,7 +381,8 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
       content: item.content,
       memo: item.memo || '',
       tags: Array.isArray(item.tags) ? [...item.tags] : [],
-      lastupdated: baseNow + idx
+      lastupdated: baseNow + idx,
+      deletedAt: null
     }));
 
     await bulkSaveCards(newCards);
@@ -280,7 +402,8 @@ export function initShelfModule({ onTimelineUpdated, onCloseWings }) {
       content: shelf.items.map(i => i.content).join('\n\n'),
       memo: shelf.memo || '',
       tags: Array.isArray(shelf.tags) ? [...shelf.tags] : [],
-      lastupdated: now
+      lastupdated: now,
+      deletedAt: null
     };
 
     await saveCard(blockCard);
