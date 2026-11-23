@@ -19,7 +19,6 @@
     overscroll-behavior: none;
   }
 
-  /* 横書き並べ替え時のみ：内枠の閉じ込めを外してページ全体へ伸ばす */
   html.mode-page-scroll,
   html.mode-page-scroll body {
     height: auto;
@@ -48,7 +47,6 @@
     padding-bottom: 0;
   }
 
-  /* 上部ツールバー（3トグル） */
   .toolbar {
     display: flex; gap: 8px; flex-shrink: 0;
   }
@@ -60,7 +58,6 @@
   }
   .toggle-btn:active { opacity: 0.7; }
 
-  /* ソートエリア */
   .sort-wrapper {
     position: relative; flex: 1; overflow: hidden;
     border: 1px solid #CCC; background: #EAE6DF;
@@ -92,7 +89,6 @@
     border: 1px solid rgba(255,255,255,0.5); box-sizing: border-box;
   }
 
-  /* 短冊（太さ・指馴染みはそのまま維持） */
   .tanzaku {
     background-color: #FFF; border: 1px solid #666;
     padding: 10px; user-select: none; -webkit-user-select: none;
@@ -143,7 +139,6 @@
   .tanzaku.wrap-false .tanzaku-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tanzaku.wrap-true .tanzaku-text { white-space: pre-wrap; word-break: break-all; }
 
-  /* 仕上げ画面 */
   #preview-area {
     font-size: 1.0rem; line-height: 1.7; padding: 12px;
     background: #FFF; border: 1px solid var(--text-color);
@@ -159,7 +154,6 @@
   }
   .meta-form textarea { resize: none; }
 
-  /* 下部ボタン群（2段対応＋横書き時は下端スティッキー） */
   .btn-stack { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
   .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
 
@@ -217,7 +211,7 @@
     <div id="preview-area"></div>
 
     <div class="meta-form">
-      <input type="text" id="shelf-title" placeholder="リスト名（空欄なら1首目の冒頭5文字）">
+      <input type="text" id="shelf-title" placeholder="書庫タイトル（空欄なら1首目の冒頭5文字）">
       <textarea id="shelf-memo" rows="2" placeholder="メモ（任意）"></textarea>
       <input type="text" id="shelf-tags" placeholder="タグ（例: #連作 #提出用）">
     </div>
@@ -228,8 +222,7 @@
         <button type="button" id="btn-copy" class="action-btn secondary">コピー</button>
       </div>
       <div class="btn-group">
-        <button type="button" id="btn-save-shelf" class="action-btn primary">棚に収める</button>
-        <button type="button" id="btn-go-shelf" class="action-btn secondary">棚に進む</button>
+        <button type="button" id="btn-save-shelf" class="action-btn primary">書庫に収める</button>
       </div>
     </div>
   </div>
@@ -256,7 +249,6 @@
   const btnBackSort = document.getElementById('btn-back-sort');
   const btnCopy = document.getElementById('btn-copy');
   const btnSaveShelf = document.getElementById('btn-save-shelf');
-  const btnGoShelf = document.getElementById('btn-go-shelf');
 
   const inputTitle = document.getElementById('shelf-title');
   const inputMemo = document.getElementById('shelf-memo');
@@ -266,7 +258,6 @@
   let orderedCards = [];
   let currentShelfId = null;
 
-  // ドラッグ状態
   let deskDraggedItem = null;
   let deskPlaceholder = null;
   let deskPointerOffsetX = 0;
@@ -296,7 +287,6 @@
     }
   }
 
-  // --- 設定の読み込み・保存・即時反映 ---
   function loadPrefs() {
     try {
       const saved = JSON.parse(localStorage.getItem(PREFS_KEY));
@@ -344,7 +334,6 @@
     applyPrefsToSortArea();
   });
 
-  // --- 画面遷移 ---
   function showScreen(target) {
     screenSort.classList.toggle('active', target === 'sort');
     screenFinish.classList.toggle('active', target === 'finish');
@@ -433,18 +422,13 @@
 
     try {
       await saveShelf(shelf);
-      alert('棚に収めたロボ！');
+      alert('書庫に収めました。');
     } catch (err) {
       console.error(err);
-      alert('リスト棚への保存に失敗しました。');
+      alert('書庫への保存に失敗しました。');
     }
   });
 
-  btnGoShelf.addEventListener('click', () => {
-    window.location.href = 'saikiyo2.html?open=shelf';
-  });
-
-  // --- 短冊の生成 ---
   function renderTanzakus(cards) {
     sortArea.className = `dir-${prefs.direction}`;
     sortArea.innerHTML = '';
@@ -486,7 +470,6 @@
     });
   }
 
-  // --- 自前スクロールバー（縦書き時のみ使用） ---
   function updateCustomScrollbar() {
     const track = document.getElementById('custom-scrollbar');
     const thumb = document.getElementById('custom-thumb');
@@ -518,7 +501,6 @@
   sortArea.addEventListener('scroll', () => { requestAnimationFrame(updateCustomScrollbar); });
   window.addEventListener('resize', () => { requestAnimationFrame(updateCustomScrollbar); });
 
-  // --- D&D ＋ エッジスクロール ---
   function handlePointerDown(e) {
     if (e.button !== 0 && e.type !== 'touchstart') return;
     if (!e.target.classList.contains('drag-handle')) return;
@@ -734,7 +716,6 @@
     updateCustomScrollbar();
   }
 
-  // --- 起動時読み込み ---
   window.addEventListener('DOMContentLoaded', async () => {
     loadPrefs();
     await initDB();
