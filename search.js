@@ -1,4 +1,4 @@
-/** さいきよ2 - ギアチェンジ式検索モジュール（検索 → 推敲固定 → 解除 / AND・OR複合検索） */
+/** さいきよ2 - ギアチェンジ式検索モジュール（検索 → 推敲 → 解除 / AND・OR複合検索） */
 
 import { formatDateWithWeekday } from './ui.js';
 
@@ -35,12 +35,12 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     if (DOM.btnSearch) {
       DOM.btnSearch.classList.remove('is-searching', 'is-suiko');
       if (mode === 'idle') {
-        DOM.btnSearch.textContent = '検';
+        DOM.btnSearch.textContent = '検索';
       } else if (mode === 'searching') {
-        DOM.btnSearch.textContent = '推';
+        DOM.btnSearch.textContent = '推敲';
         DOM.btnSearch.classList.add('is-searching');
       } else if (mode === 'suiko') {
-        DOM.btnSearch.textContent = '解';
+        DOM.btnSearch.textContent = '解除';
         DOM.btnSearch.classList.add('is-suiko');
       }
     }
@@ -67,7 +67,6 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
       return cards.filter(c => suikoVisibleIds.has(c.id));
     }
 
-    // mode === 'searching'
     const cGroups = splitOrGroups(normalizeQuery(DOM.inputContent.value));
     const tGroups = splitOrGroups(normalizeQuery(DOM.inputTags.value));
 
@@ -112,7 +111,6 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     DOM.inputContent.value = '';
     DOM.inputTags.value = '';
     if (onClearInputs) onClearInputs();
-    // 今見ている元歌の位置を1ピクセルも動かさずに固定する
     onSearchStateChanged({ forceBottom: false, preserveScroll: true });
   }
 
@@ -128,7 +126,6 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     onSearchStateChanged({ forceBottom: true, preserveScroll: false });
   }
 
-  // 3段階ギアチェンジ：検 → 推 → 解 → 検
   function cycleMode() {
     if (mode === 'idle') {
       enterSearching();
@@ -139,7 +136,6 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
     }
   }
 
-  // 新規カード投稿時の連動（検索中なら解除、推敲固定中なら新カードを自動編入）
   function handleCardCreated(newCardId) {
     if (mode === 'searching') {
       mode = 'idle';
