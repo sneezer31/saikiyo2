@@ -1,12 +1,10 @@
-// ui.js - カード描画（短め長押し1本化・スクロール即キャンセル・表示項目トグル）
+// ui.js - カード描画（標準シングルタップ1本化・スクロール誤爆防止・表示項目トグル）
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
-// カード編集を開くまでの押下時間（ミリ秒）※好みで 200〜300 の範囲で調整可
-const OPEN_HOLD_MS = 250;
-
-let activeCancelPress = null;
+// スクロール中・慣性停止直後のタップ誤爆を弾くための最終スクロール時刻
+let lastScrollAt = 0;
 document.addEventListener('scroll', () => {
-  if (activeCancelPress) activeCancelPress();
+  lastScrollAt = Date.now();
 }, { passive: true, capture: true });
 
 export function formatDateWithWeekday(timestamp) {
@@ -41,50 +39,33 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
     cardEl.appendChild(dateEl);
   }
 
-  // 本文（OPEN_HOLD_MS 押下で編集を開く・移動10pxまたはスクロールで即キャンセル）
+  // 本文（通常のシングルタップで編集を開く・スクロールや指ブレは開かない）
   const bodyEl = document.createElement('div');
   bodyEl.className = 'card-body' + (prefs.oneLine ? ' is-oneline' : '');
   bodyEl.textContent = card.content;
 
-  let pressTimer = null;
   let startX = 0;
   let startY = 0;
-
-  const cancelPress = () => {
-    if (pressTimer) {
-      clearTimeout(pressTimer);
-      pressTimer = null;
-    }
-    bodyEl.style.opacity = '';
-    if (activeCancelPress === cancelPress) activeCancelPress = null;
-  };
+  let moved = false;
 
   bodyEl.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
     startX = e.clientX;
     startY = e.clientY;
-    cancelPress();
-    activeCancelPress = cancelPress;
-    bodyEl.style.opacity = '0.6';
-    pressTimer = setTimeout(() => {
-      pressTimer = null;
-      bodyEl.style.opacity = '';
-      if (activeCancelPress === cancelPress) activeCancelPress = null;
-      if (navigator.vibrate) navigator.vibrate(20);
-      onOpenEdit(card);
-    }, OPEN_HOLD_MS);
-  });
+    moved = false;
+  }, { passive: true });
 
   bodyEl.addEventListener('pointermove', (e) => {
-    if (!pressTimer) return;
-    if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) {
-      cancelPress();
+    if (moved) return;
+    if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) {
+      moved = true;
     }
   }, { passive: true });
 
-  bodyEl.addEventListener('pointerup', cancelPress);
-  bodyEl.addEventListener('pointercancel', cancelPress);
-  bodyEl.addEventListener('pointerleave', cancelPress);
+  bodyEl.addEventListener('click', () => {
+    if (moved) return;
+    if (Date.now() - lastScrollAt < 150) return;
+    onOpenEdit(card);
+  });
 
   cardEl.appendChild(bodyEl);
 
