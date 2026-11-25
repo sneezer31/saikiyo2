@@ -1,186 +1,225 @@
-/** さいきよ2 - ギアチェンジ式検索モジュール（検索 → 推敲 → 解除 / AND・OR複合検索） */
+/** さいきよ2 - 設定モジュール（表示項目・並び順・配色・文字サイズ5段階・扉ロック・全画面） */
 
-import { formatDateWithWeekday } from './ui.js';
+const CONFIG_KEY = 'saikiyo2_config';
+const TITLE_KEY = 'saikiyo2_title';
+const SETUP_DONE_KEY = 'saikiyo2_setup_done';
+const PASSPHRASE_KEY = 'saikiyo2_passphrase';
+const MASTER_KEY = 'よきいさ';
 
-export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onClearInputs }) {
-  let mode = 'idle'; // 'idle' | 'searching' | 'suiko'
-  const suikoVisibleIds = new Set();
-  let debounceTimer = null;
+const PRESET_PALETTES = {
+  kinari:     { main: '#1A1A1A', sub: '#EAE6DF', bg: '#FDFBF6' },
+  ginnezumi:  { main: '#595857', sub: '#F0EBE1', bg: '#FFFCF5' },
+  monochrome: { main: '#111111', sub: '#E0E0E0', bg: '#FFFFFF' },
+  sumi:       { main: '#EAE6DF', sub: '#2A2C2F', bg: '#1C1D1F' }
+};
 
-  const DOM = {
-    inputContent: document.getElementById('input-content'),
-    inputTags: document.getElementById('input-tags'),
-    btnSearch: document.getElementById('btn-search'),
-    banner: document.getElementById('search-mode-banner'),
-    bannerText: document.getElementById('search-banner-text'),
-    btnBannerFix: document.getElementById('btn-search-banner-fix'),
-    btnBannerReset: document.getElementById('btn-search-banner-reset')
-  };
+const DEFAULT_DISPLAY_PREFS = {
+  showDate: false,
+  showCheck: true,
+  showTags: true,
+  showMemo: false,
+  oneLine: false,
+  sortOrder: 'asc'
+};
 
-  function normalizeQuery(str) {
-    return (str || '')
-      .replace(/[｜│❘]/g, '|')
-      .replace(/ /g, ' ')
-      .toLowerCase();
-  }
+const DEFAULT_CONFIG = {
+  theme: 'kinari',
+  customColors: null,
+  size: '1',            // '1'(1.0x) 〜 '5'(1.4x)
+  font: 'gothic',
+  radius: 'none',
+  displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
+};
 
-  function splitOrGroups(normalizedStr) {
-    return normalizedStr
-      .split('|')
-      .map(group => group.trim().split(/\s+/).filter(Boolean))
-      .filter(terms => terms.length > 0);
-  }
+const CUSTOM_CSS_VARS = [
+  '--bg-color',
+  '--text-color',
+  '--muted-color',
+  '--header-bg',
+  '--footer-bg',
+  '--console-bg',
+  '--surface-bg',
+  '--border-subtle'
+];
 
-  function updateUI(matchedCount = 0) {
-    if (DOM.btnSearch) {
-      DOM.btnSearch.classList.remove('is-searching', 'is-suiko');
-      if (mode === 'idle') {
-        DOM.btnSearch.textContent = '検索';
-      } else if (mode === 'searching') {
-        DOM.btnSearch.textContent = '推敲';
-        DOM.btnSearch.classList.add('is-searching');
-      } else if (mode === 'suiko') {
-        DOM.btnSearch.textContent = '解除';
-        DOM.btnSearch.classList.add('is-suiko');
-      }
-    }
-
-    if (DOM.banner) {
-      if (mode === 'idle') {
-        DOM.banner.style.display = 'none';
-      } else if (mode === 'searching') {
-        DOM.banner.style.display = 'flex';
-        DOM.bannerText.textContent = `検索中 (${matchedCount})`;
-        if (DOM.btnBannerFix) DOM.btnBannerFix.style.display = 'inline-block';
-      } else if (mode === 'suiko') {
-        DOM.banner.style.display = 'flex';
-        DOM.bannerText.textContent = `推敲固定 (${matchedCount}・新規書込を自動追加)`;
-        if (DOM.btnBannerFix) DOM.btnBannerFix.style.display = 'none';
-      }
-    }
-  }
-
-  function filterCards(cards) {
-    if (mode === 'idle') return cards;
-
-    if (mode === 'suiko') {
-      return cards.filter(c => suikoVisibleIds.has(c.id));
-    }
-
-    const cGroups = splitOrGroups(normalizeQuery(DOM.inputContent.value));
-    const tGroups = splitOrGroups(normalizeQuery(DOM.inputTags.value));
-
-    if (cGroups.length === 0 && tGroups.length === 0) return cards;
-
-    return cards.filter(card => {
-      const content = (card.content || '').toLowerCase();
-      const memo = (card.memo || '').toLowerCase();
-      const dateStr = formatDateWithWeekday(card.id).toLowerCase();
-      const tagsList = Array.isArray(card.tags) ? card.tags : [];
-      const tagsJoined = tagsList.join(' ').toLowerCase();
-      const tagsNoHash = tagsList.map(t => t.replace(/^#/, '')).join(' ').toLowerCase();
-
-      const cMatch = cGroups.length === 0 || cGroups.some(andTerms =>
-        andTerms.every(term =>
-          content.includes(term) || memo.includes(term) || dateStr.includes(term)
-        )
-      );
-
-      const tMatch = tGroups.length === 0 || tGroups.some(andTerms =>
-        andTerms.every(term => {
-          const bare = term.replace(/^#/, '');
-          return tagsJoined.includes(term) || (bare && tagsNoHash.includes(bare));
-        })
-      );
-
-      return cMatch && tMatch;
-    });
-  }
-
-  function enterSearching() {
-    mode = 'searching';
-    suikoVisibleIds.clear();
-    onSearchStateChanged({ forceBottom: false, preserveScroll: false });
-  }
-
-  function enterSuiko() {
-    const visibleIds = getVisibleCardIds();
-    suikoVisibleIds.clear();
-    visibleIds.forEach(id => suikoVisibleIds.add(id));
-    mode = 'suiko';
-    DOM.inputContent.value = '';
-    DOM.inputTags.value = '';
-    if (onClearInputs) onClearInputs();
-    onSearchStateChanged({ forceBottom: false, preserveScroll: true });
-  }
-
-  function reset({ clearInputs = true, silent = false } = {}) {
-    clearTimeout(debounceTimer);
-    mode = 'idle';
-    suikoVisibleIds.clear();
-    if (clearInputs) {
-      DOM.inputContent.value = '';
-      DOM.inputTags.value = '';
-      if (onClearInputs) onClearInputs();
-    }
-    if (!silent) {
-      onSearchStateChanged({ forceBottom: true, preserveScroll: false });
-    } else {
-      updateUI(0);
-    }
-  }
-
-  function cycleMode() {
-    if (mode === 'idle') {
-      enterSearching();
-    } else if (mode === 'searching') {
-      enterSuiko();
-    } else {
-      reset({ clearInputs: true });
-    }
-  }
-
-  function handleCardCreated(newCardId) {
-    if (mode === 'searching') {
-      mode = 'idle';
-      suikoVisibleIds.clear();
-      return 'exited_search';
-    } else if (mode === 'suiko') {
-      suikoVisibleIds.add(newCardId);
-      return 'added_suiko';
-    }
-    return 'idle';
-  }
-
-  function handleDebouncedInput() {
-    if (mode !== 'searching') return;
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      onSearchStateChanged({ forceBottom: false, preserveScroll: false });
-    }, 250);
-  }
-
-  if (DOM.btnSearch) DOM.btnSearch.addEventListener('click', cycleMode);
-  if (DOM.inputContent) DOM.inputContent.addEventListener('input', handleDebouncedInput);
-  if (DOM.inputTags) DOM.inputTags.addEventListener('input', handleDebouncedInput);
-
-  if (DOM.btnBannerFix) {
-    DOM.btnBannerFix.addEventListener('click', () => {
-      if (mode === 'searching') enterSuiko();
-    });
-  }
-  if (DOM.btnBannerReset) {
-    DOM.btnBannerReset.addEventListener('click', () => {
-      reset({ clearInputs: true });
-    });
-  }
-
+function parseHex(hex) {
+  const clean = String(hex || '').replace('#', '');
+  if (clean.length !== 6) return { r: 26, g: 26, b: 26 };
   return {
-    filterCards,
-    updateUI,
-    handleCardCreated,
-    reset,
-    isActive: () => mode !== 'idle',
-    getMode: () => mode
+    r: parseInt(clean.slice(0, 2), 16) || 0,
+    g: parseInt(clean.slice(2, 4), 16) || 0,
+    b: parseInt(clean.slice(4, 6), 16) || 0
   };
 }
+
+function toHex(n) {
+  return Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+}
+
+function mixHex(hexA, hexB, ratioB) {
+  const a = parseHex(hexA);
+  const b = parseHex(hexB);
+  const r = a.r * (1 - ratioB) + b.r * ratioB;
+  const g = a.g * (1 - ratioB) + b.g * ratioB;
+  const bl = a.b * (1 - ratioB) + b.b * ratioB;
+  return `#${toHex(r)}${toHex(g)}${toHex(bl)}`;
+}
+
+function hexToRgba(hex, alpha) {
+  const { r, g, b } = parseHex(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function migrateSizeValue(raw) {
+  if (['1', '2', '3', '4', '5'].includes(String(raw))) return String(raw);
+  if (raw === 'large') return '3';
+  return '1';
+}
+
+export function initSettingsModule({ onDisplayPrefsChanged } = {}) {
+  let config = {
+    ...DEFAULT_CONFIG,
+    displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
+  };
+
+  const DOM = {
+    btnTop: document.getElementById('btn-top'),
+    colorAutoPicker: document.getElementById('color-auto-picker'),
+    colorManualMain: document.getElementById('color-manual-main'),
+    colorManualSub: document.getElementById('color-manual-sub'),
+    colorManualBg: document.getElementById('color-manual-bg'),
+    inputAppTitle: document.getElementById('config-app-title'),
+    btnSaveAppTitle: document.getElementById('btn-save-app-title'),
+    inputPassphrase: document.getElementById('config-passphrase'),
+    btnSavePassphrase: document.getElementById('btn-save-passphrase'),
+    btnToggleFullscreen: document.getElementById('btn-toggle-fullscreen'),
+    btnResetConfig: document.getElementById('btn-reset-config'),
+    panelAuth: document.getElementById('panel-auth'),
+    authInput: document.getElementById('auth-input'),
+    btnAuthUnlock: document.getElementById('btn-auth-unlock'),
+    panelFirstBoot: document.getElementById('panel-first-boot'),
+    firstBootChoices: document.getElementById('first-boot-choices'),
+    btnFirstBootSkip: document.getElementById('btn-first-boot-skip'),
+    btnFirstBootUse: document.getElementById('btn-first-boot-use'),
+    firstBootInputArea: document.getElementById('first-boot-input-area'),
+    firstBootPassInput: document.getElementById('first-boot-pass-input'),
+    btnFirstBootSave: document.getElementById('btn-first-boot-save')
+  };
+
+  function saveConfig() {
+    try {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
+    } catch (_) {}
+  }
+
+  function clearCustomColorVars() {
+    CUSTOM_CSS_VARS.forEach(v => document.body.style.removeProperty(v));
+  }
+
+  function applyCustomColorVars(main, sub, bg) {
+    const style = document.body.style;
+    style.setProperty('--text-color', main);
+    style.setProperty('--header-bg', sub);
+    style.setProperty('--bg-color', bg);
+    style.setProperty('--footer-bg', hexToRgba(sub, 0.92));
+    style.setProperty('--console-bg', hexToRgba(bg, 0.98));
+    style.setProperty('--surface-bg', mixHex(bg, '#FFFFFF', 0.35));
+    style.setProperty('--muted-color', mixHex(main, bg, 0.45));
+    style.setProperty('--border-subtle', mixHex(main, bg, 0.72));
+  }
+
+  function syncColorPickers(main, sub, bg) {
+    if (DOM.colorAutoPicker) DOM.colorAutoPicker.value = main.slice(0, 7);
+    if (DOM.colorManualMain) DOM.colorManualMain.value = main.slice(0, 7);
+    if (DOM.colorManualSub) DOM.colorManualSub.value = sub.slice(0, 7);
+    if (DOM.colorManualBg) DOM.colorManualBg.value = bg.slice(0, 7);
+  }
+
+  function applyConfig() {
+    config.size = migrateSizeValue(config.size);
+    document.body.dataset.size = config.size;
+    document.body.dataset.font = config.font;
+    document.body.dataset.radius = config.radius;
+
+    if (config.theme === 'custom' && config.customColors) {
+      document.body.dataset.theme = 'custom';
+      const { main, sub, bg } = config.customColors;
+      applyCustomColorVars(main, sub, bg);
+      syncColorPickers(main, sub, bg);
+    } else {
+      const presetKey = PRESET_PALETTES[config.theme] ? config.theme : 'kinari';
+      config.theme = presetKey;
+      clearCustomColorVars();
+      document.body.dataset.theme = presetKey;
+      const p = PRESET_PALETTES[presetKey];
+      syncColorPickers(p.main, p.sub, p.bg);
+    }
+
+    document.querySelectorAll('[data-config-theme]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.configTheme === config.theme);
+    });
+    document.querySelectorAll('[data-config-size]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.configSize === config.size);
+    });
+    document.querySelectorAll('[data-config-font]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.configFont === config.font);
+    });
+    document.querySelectorAll('[data-config-radius]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.configRadius === config.radius);
+    });
+    document.querySelectorAll('[data-display-toggle]').forEach(btn => {
+      const key = btn.dataset.displayToggle;
+      btn.classList.toggle('active', Boolean(config.displayPrefs[key]));
+    });
+    document.querySelectorAll('[data-sort]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sort === config.displayPrefs.sortOrder);
+    });
+  }
+
+  function applyAppTitle() {
+    const title = localStorage.getItem(TITLE_KEY) || 'さいきよ2';
+    document.title = title;
+    if (DOM.btnTop) DOM.btnTop.textContent = title;
+    if (DOM.inputAppTitle) DOM.inputAppTitle.value = title;
+  }
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
+      if (saved) {
+        config = {
+          ...DEFAULT_CONFIG,
+          ...saved,
+          size: migrateSizeValue(saved.size),
+          displayPrefs: {
+            ...DEFAULT_DISPLAY_PREFS,
+            ...(saved.displayPrefs || {})
+          }
+        };
+      }
+    } catch (_) {}
+
+    applyConfig();
+    applyAppTitle();
+
+    const savedPass = localStorage.getItem(PASSPHRASE_KEY) || '';
+    if (DOM.inputPassphrase) DOM.inputPassphrase.value = savedPass;
+
+    if (!localStorage.getItem(SETUP_DONE_KEY)) {
+      if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'flex';
+    } else if (savedPass) {
+      if (DOM.panelAuth) {
+        DOM.panelAuth.style.display = 'flex';
+        setTimeout(() => DOM.authInput && DOM.authInput.focus(), 100);
+      }
+    }
+  }
+
+  // --- 表示項目トグル＆並び順 ---
+  document.querySelectorAll('[data-display-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.displayToggle;
+      config.displayPrefs[key] = !config.displayPrefs[key];
+      applyConfig();
+      saveConfig();
+      if (onDisplay
