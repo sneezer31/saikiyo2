@@ -8,78 +8,50 @@
 </head>
 <body>
   <header>
-    <button id="btn-left-wing" class="header-wing-btn" aria-expanded="false">タイムライン ▾</button>
-    <div class="header-right-group">
-      <button id="btn-top">さいきよ2</button>
-      <button id="btn-right-wing" class="header-wing-btn">管理</button>
-    </div>
+    <button type="button" id="btn-open-display" class="header-wing-btn">表示</button>
+    <button type="button" id="btn-top">さいきよ2</button>
+    <button type="button" id="btn-open-shelf" class="header-wing-btn">書庫</button>
   </header>
 
-  <!-- 左上ボタン用：パネル選択アコーディオン -->
-  <nav id="left-wing-accordion" class="left-accordion" aria-hidden="true">
-    <button type="button" class="accordion-item" data-wing-target="none">タイムライン</button>
-    <button type="button" class="accordion-item" data-wing-target="display">表示</button>
-    <button type="button" class="accordion-item" data-wing-target="design">設定</button>
-    <button type="button" class="accordion-item" data-wing-target="config">コンフィグ</button>
-  </nav>
-
-  <!-- 月イチゴミ箱整理の念押しバー（30日経過時のみ表示） -->
-  <div id="trash-remind-bar" style="display: none;">
-    <div id="trash-remind-text" class="trash-remind-text"></div>
-    <div class="trash-remind-actions">
-      <button type="button" id="btn-remind-empty" class="trash-remind-btn primary">バックアップして空にする</button>
-      <button type="button" id="btn-remind-later" class="trash-remind-btn secondary">来月また確認</button>
-    </div>
-  </div>
-
-  <!-- ゴミ箱表示中インジケータ -->
-  <div id="trash-mode-banner" style="display: none;">
-    <span>ゴミ箱を表示中（ダブルタップで復元・完全削除）</span>
-    <button type="button" id="btn-exit-trash-mode">通常へ戻る</button>
-  </div>
-
-  <!-- 検索・推敲固定中インジケータ -->
+  <!-- 検索・推敲固定中バナー -->
   <div id="search-mode-banner" style="display: none;">
     <span id="search-banner-text">検索中</span>
     <div class="search-banner-actions">
-      <button type="button" id="btn-search-banner-fix">推敲固定</button>
+      <button type="button" id="btn-search-banner-fix">この結果のまま新規作成</button>
       <button type="button" id="btn-search-banner-reset">解除</button>
     </div>
   </div>
 
   <main id="timeline"></main>
 
-  <div id="footer-bar">
-    <div id="footer-normal">
-      <button id="btn-open-shelf" class="footer-shelf-btn">書庫</button>
-      <button id="btn-fab">＋</button>
-    </div>
-  </div>
+  <!-- 右下フローティング ＋ ボタン（左下は空きスペース） -->
+  <button type="button" id="btn-fab" aria-label="新規入力">＋</button>
 
-  <!-- 右からぬっと出る選択ドック（大型・高タップ性版） -->
+  <!-- 右端フロート選択ドック -->
   <aside id="selection-dock" aria-hidden="true">
-    <div id="selection-count" class="dock-count">0件選択</div>
+    <div id="selection-count" class="dock-count">0</div>
     <button type="button" id="btn-select-all" class="dock-btn secondary">全選択</button>
     <button type="button" id="btn-batch-edit" class="dock-btn primary">一括編集</button>
     <button type="button" id="btn-to-desk" class="dock-btn primary">机へ</button>
-    <button type="button" id="btn-dock-reader" class="dock-btn secondary">広げて読む</button>
+    <button type="button" id="btn-dock-reader" class="dock-btn secondary">閲覧</button>
     <button type="button" id="btn-cancel-selection" class="dock-btn ghost dock-btn-cancel">取消</button>
   </aside>
 
+  <!-- せり上がる入力コンソール -->
   <div id="console-area">
     <textarea id="input-content" rows="1" placeholder="本文を入力..."></textarea>
     <div class="console-bottom">
-      <button id="btn-search" class="console-btn-icon">検索</button>
+      <button type="button" id="btn-search" class="console-btn-icon">検索</button>
       <textarea id="input-tags" placeholder="タグ（#作品 等）"></textarea>
-      <button id="btn-send" class="console-btn-icon">書込</button>
+      <button type="button" id="btn-send" class="console-btn-icon">書込</button>
     </div>
   </div>
 
-  <!-- 中央2層：詳細・編集パネル -->
+  <!-- カード詳細・編集パネル -->
   <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
-      <h2 id="edit-panel-title">詳細・編集</h2>
-      <button id="btn-close-edit">戻る</button>
+      <h2 id="edit-panel-title">カード編集</h2>
+      <button type="button" id="btn-close-edit">戻る</button>
     </div>
 
     <div class="edit-group" id="edit-timestamp-group">
@@ -87,16 +59,16 @@
       <div id="edit-timestamp" class="edit-meta-box"></div>
     </div>
 
-    <div class="edit-readonly" id="edit-content-view" style="margin-bottom:8px; padding:10px; font-size:1.1rem; white-space:pre-wrap;"></div>
-    <button type="button" id="btn-open-reader-edit" class="edit-reader-btn">広げて読む</button>
+    <div id="edit-content-view" class="edit-readonly"></div>
+    <button type="button" id="btn-open-reader-edit" class="edit-reader-btn">閲覧</button>
 
     <div class="edit-group">
-      <label>メモ</label>
+      <label for="edit-memo">メモ</label>
       <textarea id="edit-memo" placeholder="あとから書き換え自由"></textarea>
     </div>
 
     <div class="edit-group">
-      <label>タグ</label>
+      <label for="edit-tags">タグ</label>
       <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
       <div id="edit-tags-hint" class="edit-hint" style="display: none;"></div>
       <div class="tag-helpers">
@@ -109,24 +81,21 @@
     </div>
 
     <div class="edit-actions-stack">
-      <div class="edit-actions" id="edit-restore-row" style="display: none;">
-        <button id="btn-restore-edit" class="btn-primary">ゴミ箱から戻す</button>
+      <div class="edit-actions">
+        <button type="button" id="btn-delete-edit">ゴミ箱へ</button>
+        <button type="button" id="btn-copy-edit">コピー</button>
       </div>
       <div class="edit-actions">
-        <button id="btn-delete-edit" class="btn-danger">ゴミ箱へ</button>
-        <button id="btn-copy-edit" class="btn-secondary">コピー</button>
-      </div>
-      <div class="edit-actions">
-        <button id="btn-shelf-edit" class="btn-secondary">書庫に収める</button>
-        <button id="btn-save-edit" class="btn-primary">保存</button>
+        <button type="button" id="btn-shelf-edit">書庫へ</button>
+        <button type="button" id="btn-save-edit">保存</button>
       </div>
     </div>
   </div>
 
-  <!-- 鑑賞モード（広げて読む） -->
+  <!-- 閲覧パネル -->
   <div id="panel-reader" class="panel panel-reader">
     <div class="panel-header">
-      <h2 id="reader-title">鑑賞モード</h2>
+      <h2 id="reader-title">閲覧</h2>
       <div class="panel-header-actions">
         <button type="button" id="btn-reader-copy">コピー</button>
         <button type="button" id="btn-close-reader">閉じる</button>
@@ -135,282 +104,338 @@
     <div id="reader-content" class="reader-content"></div>
   </div>
 
-  <!-- 左舷1枚目：表示パネル -->
+  <!-- 内蔵 机パネル（連作並べ替え） -->
+  <div id="panel-desk" class="panel panel-full panel-desk">
+    <div id="desk-screen-sort" class="desk-screen active">
+      <div class="desk-toolbar">
+        <button type="button" id="desk-toggle-font" class="desk-toggle-btn">ゴシック</button>
+        <button type="button" id="desk-toggle-dir" class="desk-toggle-btn">横書き</button>
+        <button type="button" id="desk-toggle-wrap" class="desk-toggle-btn">1行表示</button>
+      </div>
+      <div class="desk-sort-wrapper">
+        <div id="desk-sort-area"></div>
+        <div id="desk-custom-scrollbar"><div id="desk-custom-thumb"></div></div>
+      </div>
+      <div class="desk-btn-group">
+        <button type="button" id="desk-btn-close" class="dm-btn secondary">戻る</button>
+        <button type="button" id="desk-btn-to-finish" class="dm-btn primary">次へ</button>
+      </div>
+    </div>
+
+    <div id="desk-screen-finish" class="desk-screen">
+      <div id="desk-preview-area" class="desk-preview-area"></div>
+      <div class="desk-meta-form">
+        <input type="text" id="desk-shelf-title" class="wing-input" placeholder="タイトル（空欄なら1首目の冒頭5文字）">
+        <textarea id="desk-shelf-memo" class="dm-textarea dm-textarea-prose" rows="2" placeholder="メモ（任意）"></textarea>
+        <input type="text" id="desk-shelf-tags" class="wing-input" placeholder="タグ（例: #連作 #提出用）">
+      </div>
+      <div class="desk-btn-stack">
+        <div class="desk-btn-group">
+          <button type="button" id="desk-btn-back-sort" class="dm-btn secondary">戻る</button>
+          <button type="button" id="desk-btn-reader" class="dm-btn secondary">閲覧</button>
+          <button type="button" id="desk-btn-copy" class="dm-btn secondary">コピー</button>
+        </div>
+        <div class="desk-btn-group">
+          <button type="button" id="desk-btn-save-shelf" class="dm-btn primary">書庫へ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 左：表示パネル -->
   <div id="panel-display" class="panel panel-wing">
     <div class="panel-header">
-      <h2>表示と絞り込み</h2>
+      <h2>表示</h2>
       <div class="panel-header-actions">
-        <button id="btn-display-reset">絞り込み解除</button>
-        <button class="btn-close-wing">閉じる</button>
+        <button type="button" id="btn-display-reset">条件クリア</button>
+        <button type="button" class="btn-close-wing">閉じる</button>
       </div>
     </div>
 
-    <div id="display-status" class="panel-status-bar">全件表示中</div>
+    <div id="display-status" class="panel-status-bar">全期間 0</div>
 
-    <section class="wing-section">
-      <h3>表示対象</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn active" data-scope="active">通常</button>
-        <button type="button" class="seg-btn" data-scope="trash" id="btn-scope-trash">ゴミ箱 (0)</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>タグで絞り込み（複数選択可）</h3>
-      <div id="display-tag-list" class="filter-chip-group"></div>
-    </section>
-
-    <section class="wing-section">
-      <h3>期間で絞り込み</h3>
-      <div class="date-range-row">
-        <input type="date" id="filter-date-from" class="wing-input">
-        <span class="date-range-sep">〜</span>
-        <input type="date" id="filter-date-to" class="wing-input">
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>日付ジャンプ</h3>
-      <div class="date-jump-row">
-        <input type="date" id="date-jump-input" class="wing-input">
-        <button type="button" id="btn-date-jump" class="dm-btn primary jump-btn">移動</button>
-        <button type="button" id="btn-jump-latest" class="dm-btn secondary jump-btn">最新へ</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>並び順</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn active" data-sort="asc">古い順（下が最新）</button>
-        <button type="button" class="seg-btn" data-sort="desc">新しい順（上が最新）</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>タイムラインのメモ表示</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn active" data-memo-mode="badge">マークのみ</button>
-        <button type="button" class="seg-btn" data-memo-mode="full">本文も表示</button>
-      </div>
-    </section>
-  </div>
-
-  <!-- 左舷2枚目：設定パネル（見た目・配色・文字） -->
-  <div id="panel-design" class="panel panel-wing">
-    <div class="panel-header">
-      <h2>設定（見た目）</h2>
-      <button class="btn-close-wing">閉じる</button>
-    </div>
-
-    <section class="wing-section">
-      <h3>配色テーマ（プリセット）</h3>
-      <div class="seg-group seg-grid-2">
-        <button type="button" class="seg-btn" data-config-theme="kinari">生成り</button>
-        <button type="button" class="seg-btn" data-config-theme="ginnezumi">銀鼠</button>
-        <button type="button" class="seg-btn" data-config-theme="monochrome">白黒</button>
-        <button type="button" class="seg-btn" data-config-theme="sumi">墨（ダーク）</button>
-      </div>
-
-      <div class="custom-palette-box">
-        <div class="palette-row">
-          <div class="palette-label">1色で自動生成</div>
-          <input type="color" id="color-auto-picker" class="color-swatch-input" title="基準色を選択">
+    <!-- 常時オープン：期間・タグ・タグ編集・タイムマシン -->
+    <div class="panel-box">
+      <section class="box-section">
+        <h3>期間</h3>
+        <p class="dm-desc">空欄なら全期間を表示します（片側のみの指定も可）。</p>
+        <div class="date-range-row">
+          <input type="date" id="filter-date-from" class="wing-input">
+          <span class="date-range-sep">〜</span>
+          <input type="date" id="filter-date-to" class="wing-input">
+          <button type="button" id="btn-clear-date" class="clear-mini-btn" title="期間クリア">×</button>
         </div>
-        <div class="palette-row">
-          <div class="palette-label">3色を自作（文字・枠・背景）</div>
-          <div class="palette-triplets">
-            <input type="color" id="color-manual-main" class="color-swatch-input" title="文字色">
-            <input type="color" id="color-manual-sub" class="color-swatch-input" title="副調色（ヘッダー・枠）">
-            <input type="color" id="color-manual-bg" class="color-swatch-input" title="背景色">
+      </section>
+
+      <section class="box-section">
+        <h3>タグ</h3>
+        <p class="dm-desc">空白区切りでAND、| でOR絞り込み（空欄なら全タグ）。</p>
+        <div class="input-with-clear">
+          <input type="text" id="filter-tag-input" class="wing-input" placeholder="例: #作品 #未発表 / #既発表 | #アーカイブ">
+          <button type="button" id="btn-clear-tag" class="clear-mini-btn" title="タグクリア">×</button>
+        </div>
+        <div class="filter-chip-group" style="margin-top: 8px;">
+          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#作品">#作品</button>
+          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#アーカイブ">#アーカイブ</button>
+          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#既発表">#既発表</button>
+          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#未発表">#未発表</button>
+          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="タグ無し">タグ無し</button>
+        </div>
+      </section>
+
+      <section class="box-section">
+        <h3>タグ編集</h3>
+        <p class="dm-desc">タイムラインのカードに付いているタグだけを書き換えます（本文は変わりません）。</p>
+        <div class="seg-group" style="margin-bottom: 12px;">
+          <button type="button" class="seg-btn active" data-tag-edit-scope="filtered">表示期間対象</button>
+          <button type="button" class="seg-btn" data-tag-edit-scope="all">全期間対象</button>
+        </div>
+
+        <div class="dm-clean-block">
+          <label>置換・削除（変更後が空欄なら削除）</label>
+          <div class="tag-replace-row">
+            <input type="text" id="tag-edit-from" class="wing-input" placeholder="対象タグ">
+            <span class="date-range-sep">→</span>
+            <input type="text" id="tag-edit-to" class="wing-input" placeholder="変更後（空で削除）">
+            <button type="button" id="btn-tag-replace" class="dm-btn primary side-compact-btn">実行</button>
           </div>
         </div>
-      </div>
-    </section>
 
-    <section class="wing-section">
-      <h3>文字サイズ</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn" data-config-size="small">小</button>
-        <button type="button" class="seg-btn" data-config-size="medium">標準</button>
-        <button type="button" class="seg-btn" data-config-size="large">大</button>
-      </div>
-    </section>
+        <div class="dm-clean-block">
+          <label>一括追加</label>
+          <div class="dm-clean-row">
+            <input type="text" id="tag-edit-add" class="wing-input" placeholder="追加するタグ（複数可）">
+            <button type="button" id="btn-tag-add" class="dm-btn secondary side-compact-btn">追加</button>
+          </div>
+        </div>
 
-    <section class="wing-section">
-      <h3>書体</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn" data-config-font="gothic">ゴシック</button>
-        <button type="button" class="seg-btn" data-config-font="mincho">明朝</button>
-      </div>
-    </section>
+        <div class="dm-clean-block">
+          <button type="button" id="btn-tag-clear-all" class="dm-btn danger-flex full-width">対象カードのタグをすべて消去</button>
+        </div>
 
-    <section class="wing-section">
-      <h3>ボタンや枠の角丸</h3>
-      <div class="seg-group">
-        <button type="button" class="seg-btn" data-config-radius="none">なし</button>
-        <button type="button" class="seg-btn" data-config-radius="soft">あり</button>
-      </div>
-    </section>
-  </div>
+        <details class="sub-fold">
+          <summary>使用中のタグ一覧（タップで対象タグへ入力）</summary>
+          <div id="tag-edit-active-list" class="filter-chip-group" style="margin-top: 10px;"></div>
+        </details>
+      </section>
 
-  <!-- 左舷3枚目：コンフィグパネル（システム・ロック・環境） -->
-  <div id="panel-config" class="panel panel-wing">
-    <div class="panel-header">
-      <h2>コンフィグ</h2>
-      <button class="btn-close-wing">閉じる</button>
+      <section class="box-section">
+        <h3>タイムマシン</h3>
+        <p class="dm-desc">でかけるを押すと全期間表示に切り替わり、その日付へ移動します。</p>
+        <div class="date-jump-row">
+          <input type="date" id="timemachine-date" class="wing-input">
+          <button type="button" id="btn-timemachine-go" class="dm-btn primary jump-btn">でかける</button>
+          <button type="button" id="btn-timemachine-back" class="dm-btn secondary jump-btn">かえる</button>
+        </div>
+      </section>
     </div>
 
-    <section class="wing-section">
-      <h3>アプリ名変更</h3>
-      <div class="dm-clean-row">
-        <input type="text" id="config-app-title" class="wing-input" placeholder="さいきよ2">
-        <button type="button" id="btn-save-app-title" class="dm-btn secondary config-side-btn">変更</button>
-      </div>
-    </section>
+    <!-- 折りたたみ：設定（旧コンフィグ＋表示項目） -->
+    <details id="fold-settings" class="panel-fold">
+      <summary class="panel-fold-summary">設定</summary>
+      <div class="panel-fold-body">
+        <section class="box-section">
+          <h3>タイムライン表示項目</h3>
+          <div class="toggle-grid">
+            <button type="button" class="seg-btn" data-display-toggle="showDate">日時</button>
+            <button type="button" class="seg-btn" data-display-toggle="showCheck">チェック</button>
+            <button type="button" class="seg-btn" data-display-toggle="showTags">タグ</button>
+            <button type="button" class="seg-btn" data-display-toggle="showMemo">メモ</button>
+            <button type="button" class="seg-btn" data-display-toggle="oneLine">1行表示</button>
+          </div>
+          <div class="seg-group" style="margin-top: 10px;">
+            <button type="button" class="seg-btn active" data-sort="asc">古い順（下が最新）</button>
+            <button type="button" class="seg-btn" data-sort="desc">新しい順（上が最新）</button>
+          </div>
+        </section>
 
-    <section class="wing-section">
-      <h3>パスワードの扉（合言葉）</h3>
-      <p class="dm-desc">起動時にロック画面を表示します。空欄のまま保存するとロックを解除します。</p>
-      <div class="dm-clean-row">
-        <input type="text" id="config-passphrase" class="wing-input" placeholder="合言葉を入力（空欄で解除）" autocomplete="new-password">
-        <button type="button" id="btn-save-passphrase" class="dm-btn primary config-side-btn">設定</button>
-      </div>
-    </section>
+        <section class="box-section">
+          <h3>配色テーマ</h3>
+          <div class="seg-group seg-grid-2">
+            <button type="button" class="seg-btn" data-config-theme="kinari">生成り</button>
+            <button type="button" class="seg-btn" data-config-theme="ginnezumi">銀鼠</button>
+            <button type="button" class="seg-btn" data-config-theme="monochrome">白黒</button>
+            <button type="button" class="seg-btn" data-config-theme="sumi">墨</button>
+          </div>
+          <div class="custom-palette-box">
+            <div class="palette-row">
+              <div class="palette-label">1色で自動生成</div>
+              <input type="color" id="color-auto-picker" class="color-swatch-input" title="基準色を選択">
+            </div>
+            <div class="palette-row">
+              <div class="palette-label">3色を自作（文字・枠・背景）</div>
+              <div class="palette-triplets">
+                <input type="color" id="color-manual-main" class="color-swatch-input" title="文字色">
+                <input type="color" id="color-manual-sub" class="color-swatch-input" title="副調色">
+                <input type="color" id="color-manual-bg" class="color-swatch-input" title="背景色">
+              </div>
+            </div>
+          </div>
+        </section>
 
-    <section class="wing-section">
-      <h3>画面と初期化</h3>
-      <div class="dm-btn-row">
-        <button type="button" id="btn-toggle-fullscreen" class="dm-btn secondary">全画面表示の切替</button>
+        <section class="box-section">
+          <h3>文字サイズ（5段階）</h3>
+          <div class="seg-group">
+            <button type="button" class="seg-btn" data-config-size="1">1.0</button>
+            <button type="button" class="seg-btn" data-config-size="2">1.1</button>
+            <button type="button" class="seg-btn" data-config-size="3">1.2</button>
+            <button type="button" class="seg-btn" data-config-size="4">1.3</button>
+            <button type="button" class="seg-btn" data-config-size="5">1.4</button>
+          </div>
+        </section>
+
+        <section class="box-section">
+          <h3>書体</h3>
+          <div class="seg-group">
+            <button type="button" class="seg-btn" data-config-font="gothic">ゴシック</button>
+            <button type="button" class="seg-btn" data-config-font="mincho">明朝</button>
+          </div>
+        </section>
+
+        <section class="box-section">
+          <h3>角丸</h3>
+          <div class="seg-group">
+            <button type="button" class="seg-btn" data-config-radius="none">なし</button>
+            <button type="button" class="seg-btn" data-config-radius="soft">あり</button>
+          </div>
+        </section>
+
+        <section class="box-section">
+          <h3>アプリ名変更</h3>
+          <div class="dm-clean-row">
+            <input type="text" id="config-app-title" class="wing-input" placeholder="さいきよ2">
+            <button type="button" id="btn-save-app-title" class="dm-btn secondary side-compact-btn">変更</button>
+          </div>
+        </section>
+
+        <section class="box-section">
+          <h3>合言葉（起動ロック）</h3>
+          <p class="dm-desc">空欄のまま保存するとロックを解除します。</p>
+          <div class="dm-clean-row">
+            <input type="text" id="config-passphrase" class="wing-input" placeholder="合言葉を入力（空欄で解除）" autocomplete="new-password">
+            <button type="button" id="btn-save-passphrase" class="dm-btn primary side-compact-btn">設定</button>
+          </div>
+        </section>
+
+        <section class="box-section">
+          <h3>画面と初期化</h3>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-toggle-fullscreen" class="dm-btn secondary">全画面表示の切替</button>
+          </div>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-reset-config" class="dm-btn danger-flex">設定を初期値に戻す</button>
+          </div>
+        </section>
       </div>
-      <div class="dm-btn-row">
-        <button type="button" id="btn-reset-config" class="dm-btn danger-flex">表示設定を初期値に戻す</button>
+    </details>
+
+    <!-- 折りたたみ：about -->
+    <details id="fold-about" class="panel-fold">
+      <summary class="panel-fold-summary">about</summary>
+      <div class="panel-fold-body">
+        <p class="dm-desc" style="margin: 0;">さいきよ2 — 短歌の記録・整理・書庫のための静かな道具です。（案内文は完成後に追記予定）</p>
       </div>
-    </section>
+    </details>
   </div>
 
-  <!-- 右舷：データ管理パネル -->
-  <div id="panel-data" class="panel panel-wing">
-    <div class="panel-header">
-      <h2>データ管理</h2>
-      <button class="btn-close-wing">閉じる</button>
-    </div>
-
-    <div id="data-stats" class="panel-status-bar">読み込み中...</div>
-
-    <section class="wing-section">
-      <h3>バックアップ（書き出し）</h3>
-      <p class="dm-desc">全カードと書庫をまとめて書き出します（メール等で送りやすいよう拡張子は .txt にしています）。</p>
-      <div class="dm-btn-row">
-        <button id="btn-export-share" class="dm-btn primary">共有で送る（メール等）</button>
-      </div>
-      <div class="dm-btn-row">
-        <button id="btn-export-file" class="dm-btn secondary">ファイル保存 (.txt)</button>
-        <button id="btn-export-copy" class="dm-btn secondary">テキストをコピー</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>復元（読み込み・統合）</h3>
-      <p class="dm-desc">メール等に保存した .txt / .json ファイルを読み込みます（初代さいきよ形式にも対応）。既存データは消さずID単位で統合します。</p>
-      <div class="dm-btn-row">
-        <button id="btn-import-file" class="dm-btn secondary">ファイルから復元 (.txt / .json)</button>
-        <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
-      </div>
-      <textarea id="input-import-text" class="dm-textarea" rows="3" placeholder="コピーしたJSONテキストをここに貼り付けて復元することもできます"></textarea>
-      <button id="btn-import-text" class="dm-btn secondary full-width">貼り付けテキストから復元</button>
-    </section>
-
-    <section class="wing-section">
-      <h3>テキスト一括取り込み</h3>
-      <p class="dm-desc">複数の短歌やメモをまとめて登録します。空行（改行2回以上）で別カードに分割されます（空行なしは1カードになります）。</p>
-      <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1首目のテキスト&#10;&#10;2首目のテキスト&#10;&#10;3首目のテキスト"></textarea>
-      <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #作品 #未発表）">
-      <button id="btn-bulk-import" class="dm-btn primary full-width">まとめて取り込む</button>
-    </section>
-
-    <section class="wing-section">
-      <h3>期間指定の書き出し・整理</h3>
-      <p class="dm-desc">日時を分刻みで指定して、対象期間のカードだけを書き出し、またはゴミ箱へ移動します（片側のみの指定も可）。</p>
-      <div class="dm-range-stack">
-        <div class="dm-range-row">
-          <label for="input-range-start">開始</label>
-          <input type="datetime-local" id="input-range-start" class="wing-input">
-        </div>
-        <div class="dm-range-row">
-          <label for="input-range-end">終了</label>
-          <input type="datetime-local" id="input-range-end" class="wing-input">
-        </div>
-      </div>
-      <div class="dm-btn-row">
-        <button id="btn-range-export" class="dm-btn secondary">期間を書き出す (.txt)</button>
-        <button id="btn-range-trash" class="dm-btn danger-flex">期間をゴミ箱へ</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>タグ整理・重複チェック</h3>
-      <div class="dm-clean-block">
-        <label>タグを指定してゴミ箱へ移動</label>
-        <div class="dm-clean-row">
-          <input type="text" id="input-clean-tag" class="wing-input" placeholder="例: #アーカイブ">
-          <button id="btn-clean-tag" class="dm-btn danger">移動</button>
-        </div>
-        <div class="dm-tag-chips">
-          <button type="button" class="dm-chip" data-tag="#アーカイブ">#アーカイブ</button>
-          <button type="button" class="dm-chip" data-tag="#既発表">#既発表</button>
-          <button type="button" class="dm-chip" data-tag="#メモ">#メモ</button>
-        </div>
-      </div>
-
-      <div class="dm-clean-block">
-        <label>重複カードの整理</label>
-        <p class="dm-desc">本文・タグ・メモが完全一致する重複を検出し、古いほうを残して新しいほうをゴミ箱へ移動します（書庫のID参照も自動修復します）。</p>
-        <button id="btn-dedupe-cards" class="dm-btn secondary full-width">重複を検出して整理</button>
-      </div>
-    </section>
-
-    <section class="wing-section">
-      <h3>ゴミ箱の管理（完全削除）</h3>
-      <p id="dm-trash-status" class="dm-desc">ゴミ箱の中身を確認中...</p>
-      <div class="dm-btn-row">
-        <button id="btn-empty-trash" class="dm-btn primary">バックアップを作ってゴミ箱を空にする</button>
-      </div>
-    </section>
-  </div>
-
-  <!-- 書庫パネル（フッター左から直行） -->
+  <!-- 右：書庫パネル（上段：書庫＆バックアップ ／ 下段：データ管理） -->
   <div id="panel-shelf" class="panel panel-wing">
     <div id="shelf-list-view">
       <div class="panel-header">
         <h2>書庫</h2>
-        <div class="panel-header-actions">
-          <button id="btn-shelf-bulk-delete" style="display: none;">選択削除</button>
-          <button class="btn-close-wing">閉じる</button>
-        </div>
+        <button type="button" class="btn-close-wing">閉じる</button>
       </div>
-      <div id="shelf-list"></div>
+
+      <!-- 上段：書庫＆全件バックアップ -->
+      <div class="panel-box">
+        <section class="box-section">
+          <h3>保管中（細枠：単首 ／ 太枠：リスト）</h3>
+          <p class="dm-desc">タイムラインは消えません。ここにはコピーを保管します。</p>
+          <div id="shelf-list"></div>
+        </section>
+
+        <section class="box-section">
+          <h3>全件バックアップ</h3>
+          <p class="dm-desc">全タイムラインと全書庫をまとめて .txt ファイルにします。</p>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-export-share" class="dm-btn primary">共有で送る（メール等）</button>
+          </div>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-export-file" class="dm-btn secondary">ファイル保存</button>
+            <button type="button" id="btn-export-copy" class="dm-btn secondary">テキストコピー</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- 下段：データ管理 -->
+      <div class="panel-box">
+        <h3 class="box-title-large">データ管理</h3>
+        <div id="data-stats" class="panel-status-bar">集計中...</div>
+
+        <section class="box-section">
+          <h3>ファイル取り込み（差分）</h3>
+          <p class="dm-desc">既存の歌は消さず、未登録のIDだけ取り込みます（初代形式対応・ステイタスはすべてタグ化）。</p>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-import-file" class="dm-btn secondary">ファイルを選択 (.txt / .json)</button>
+            <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
+          </div>
+          <textarea id="input-import-text" class="dm-textarea" rows="3" placeholder="バックアップテキストを直接貼り付けて取り込むこともできます"></textarea>
+          <button type="button" id="btn-import-text" class="dm-btn secondary full-width">貼り付けから取り込み</button>
+        </section>
+
+        <section class="box-section">
+          <h3>テキスト取り込み（差分）</h3>
+          <p class="dm-desc">1行空きで別カードとして取り込みます。すでに同じ本文がある歌はスキップします。</p>
+          <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1首目&#10;&#10;2首目&#10;&#10;3首目"></textarea>
+          <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #作品 #未発表）">
+          <button type="button" id="btn-bulk-import" class="dm-btn primary full-width">テキスト取り込み</button>
+        </section>
+
+        <section class="box-section">
+          <h3>重複整理</h3>
+          <p class="dm-desc">本文・タグ・メモが完全一致する重複を検出し、古いIDを残して新しい方だけをゴミ箱へ移します。</p>
+          <button type="button" id="btn-dedupe-cards" class="dm-btn secondary full-width">重複を検出して整理</button>
+        </section>
+
+        <section class="box-section">
+          <details id="fold-trash" class="sub-fold">
+            <summary>ゴミ箱</summary>
+            <div style="margin-top: 10px;">
+              <p class="dm-desc">削除したカードの隔離場所です。戻すボタンで元のIDのままタイムラインへ復帰できます。</p>
+              <div id="trash-list" class="trash-list"></div>
+              <div class="dm-btn-row" style="margin-top: 10px;">
+                <button type="button" id="btn-trash-empty" class="dm-btn danger-flex">バックアップしてゴミ箱を空にする</button>
+              </div>
+            </div>
+          </details>
+        </section>
+      </div>
     </div>
 
     <!-- 書庫：詳細ビュー -->
     <div id="shelf-detail-view" style="display: none;">
       <div class="panel-header">
         <h2 id="shelf-detail-title">書庫詳細</h2>
-        <button id="btn-shelf-back-list">書庫一覧へ</button>
+        <button type="button" id="btn-shelf-back-list">書庫一覧へ</button>
       </div>
       <div id="shelf-detail-meta" class="shelf-detail-meta"></div>
       <div id="shelf-detail-memo" class="shelf-detail-memo"></div>
       <div id="shelf-detail-items" class="shelf-detail-items"></div>
       <div class="shelf-detail-actions">
-        <button id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
         <div class="shelf-detail-return-row">
-          <button id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
-          <button id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
+          <button type="button" id="btn-shelf-reader" class="shelf-act-btn secondary">閲覧</button>
+          <button type="button" id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
+        </div>
+        <button type="button" id="btn-shelf-backup" class="shelf-act-btn secondary">この中身をバックアップ</button>
+        <div class="shelf-detail-return-row">
+          <button type="button" id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
+          <button type="button" id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- パスワード付きの扉（起動時ロック画面） -->
+  <!-- 起動時ロック画面 -->
   <div id="panel-auth" class="auth-overlay" style="display: none;">
     <div class="auth-box">
       <h2>合言葉を入力してください</h2>
@@ -419,11 +444,11 @@
     </div>
   </div>
 
-  <!-- 初回セットアップ（扉機能の選択） -->
+  <!-- 初回セットアップ -->
   <div id="panel-first-boot" class="auth-overlay" style="display: none;">
     <div class="auth-box">
       <h2>初期セットアップ</h2>
-      <p class="auth-desc">起動時にパスワード（合言葉）で画面をロックする機能を使いますか？<br><span>※後から「コンフィグ」画面でいつでも変更できます。</span></p>
+      <p class="auth-desc">起動時に合言葉で画面をロックする機能を使いますか？<br><span>※後から「表示」→「設定」でいつでも変更できます。</span></p>
       <div id="first-boot-choices" class="auth-btn-row">
         <button type="button" id="btn-first-boot-skip" class="auth-btn secondary">使わない</button>
         <button type="button" id="btn-first-boot-use" class="auth-btn primary">使う</button>
