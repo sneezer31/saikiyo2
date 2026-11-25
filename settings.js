@@ -1,4 +1,4 @@
-/** さいきよ2 - 設定・カスタム配色パレット・パスワード扉・全画面切替モジュール */
+/** さいきよ2 - 設定モジュール（表示項目・並び順・配色・文字サイズ5段階・扉ロック・全画面） */
 
 const CONFIG_KEY = 'saikiyo2_config';
 const TITLE_KEY = 'saikiyo2_title';
@@ -13,12 +13,22 @@ const PRESET_PALETTES = {
   sumi:       { main: '#EAE6DF', sub: '#2A2C2F', bg: '#1C1D1F' }
 };
 
+const DEFAULT_DISPLAY_PREFS = {
+  showDate: false,
+  showCheck: true,
+  showTags: true,
+  showMemo: false,
+  oneLine: false,
+  sortOrder: 'asc'
+};
+
 const DEFAULT_CONFIG = {
-  theme: 'kinari',      // 'kinari' | 'ginnezumi' | 'monochrome' | 'sumi' | 'custom'
-  customColors: null,   // { main, sub, bg }
-  size: 'medium',       // 'small' | 'medium' | 'large'
-  font: 'gothic',       // 'gothic' | 'mincho'
-  radius: 'none'        // 'none' | 'soft'
+  theme: 'kinari',
+  customColors: null,
+  size: '1',            // '1'(1.0x) 〜 '5'(1.4x)
+  font: 'gothic',
+  radius: 'none',
+  displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
 };
 
 const CUSTOM_CSS_VARS = [
@@ -60,24 +70,30 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export function initSettingsModule() {
-  let config = { ...DEFAULT_CONFIG };
+function migrateSizeValue(raw) {
+  if (['1', '2', '3', '4', '5'].includes(String(raw))) return String(raw);
+  if (raw === 'large') return '3';
+  return '1';
+}
+
+export function initSettingsModule({ onDisplayPrefsChanged } = {}) {
+  let config = {
+    ...DEFAULT_CONFIG,
+    displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
+  };
 
   const DOM = {
     btnTop: document.getElementById('btn-top'),
-    // カラーパレット
     colorAutoPicker: document.getElementById('color-auto-picker'),
     colorManualMain: document.getElementById('color-manual-main'),
     colorManualSub: document.getElementById('color-manual-sub'),
     colorManualBg: document.getElementById('color-manual-bg'),
-    // アプリ名・合言葉・全画面・リセット
     inputAppTitle: document.getElementById('config-app-title'),
     btnSaveAppTitle: document.getElementById('btn-save-app-title'),
     inputPassphrase: document.getElementById('config-passphrase'),
     btnSavePassphrase: document.getElementById('btn-save-passphrase'),
     btnToggleFullscreen: document.getElementById('btn-toggle-fullscreen'),
     btnResetConfig: document.getElementById('btn-reset-config'),
-    // ロック画面＆初回セットアップ
     panelAuth: document.getElementById('panel-auth'),
     authInput: document.getElementById('auth-input'),
     btnAuthUnlock: document.getElementById('btn-auth-unlock'),
@@ -105,7 +121,7 @@ export function initSettingsModule() {
     style.setProperty('--text-color', main);
     style.setProperty('--header-bg', sub);
     style.setProperty('--bg-color', bg);
-    style.setProperty('--footer-bg', hexToRgba(sub, 0.90));
+    style.setProperty('--footer-bg', hexToRgba(sub, 0.92));
     style.setProperty('--console-bg', hexToRgba(bg, 0.98));
     style.setProperty('--surface-bg', mixHex(bg, '#FFFFFF', 0.35));
     style.setProperty('--muted-color', mixHex(main, bg, 0.45));
@@ -120,6 +136,7 @@ export function initSettingsModule() {
   }
 
   function applyConfig() {
+    config.size = migrateSizeValue(config.size);
     document.body.dataset.size = config.size;
     document.body.dataset.font = config.font;
     document.body.dataset.radius = config.radius;
@@ -150,6 +167,13 @@ export function initSettingsModule() {
     document.querySelectorAll('[data-config-radius]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.configRadius === config.radius);
     });
+    document.querySelectorAll('[data-display-toggle]').forEach(btn => {
+      const key = btn.dataset.displayToggle;
+      btn.classList.toggle('active', Boolean(config.displayPrefs[key]));
+    });
+    document.querySelectorAll('[data-sort]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sort === config.displayPrefs.sortOrder);
+    });
   }
 
   function applyAppTitle() {
@@ -162,15 +186,25 @@ export function initSettingsModule() {
   function load() {
     try {
       const saved = JSON.parse(localStorage.getItem(CONFIG_KEY));
-      if (saved) config = { ...DEFAULT_CONFIG, ...saved };
+      if (saved) {
+        config = {
+          ...DEFAULT_CONFIG,
+          ...saved,
+          size: migrateSizeValue(saved.size),
+          displayPrefs: {
+            ...DEFAULT_DISPLAY_PREFS,
+            ...(saved.displayPrefs || {})
+          }
+        };
+      }
     } catch (_) {}
+
     applyConfig();
     applyAppTitle();
 
     const savedPass = localStorage.getItem(PASSPHRASE_KEY) || '';
     if (DOM.inputPassphrase) DOM.inputPassphrase.value = savedPass;
 
-    // 起動時の扉チェック
     if (!localStorage.getItem(SETUP_DONE_KEY)) {
       if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'flex';
     } else if (savedPass) {
@@ -181,7 +215,27 @@ export function initSettingsModule() {
     }
   }
 
-  // --- テーマ・サイズ・書体・角丸イベント ---
+  // --- 表示項目トグル＆並び順 ---
+  document.querySelectorAll('[data-display-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.displayToggle;
+      config.displayPrefs[key] = !config.displayPrefs[key];
+      applyConfig();
+      saveConfig();
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ preserveScroll: true });
+    });
+  });
+
+  document.querySelectorAll('[data-sort]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.displayPrefs.sortOrder = btn.dataset.sort;
+      applyConfig();
+      saveConfig();
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ forceBottom: true });
+    });
+  });
+
+  // --- テーマ・サイズ・書体・角丸 ---
   document.querySelectorAll('[data-config-theme]').forEach(btn => {
     btn.addEventListener('click', () => {
       config.theme = btn.dataset.configTheme;
@@ -215,7 +269,7 @@ export function initSettingsModule() {
     });
   });
 
-  // --- 1色で自動生成パレット（初代アルゴリズム：85%・95%白混色） ---
+  // --- 1色自動生成パレット ---
   if (DOM.colorAutoPicker) {
     DOM.colorAutoPicker.addEventListener('input', (e) => {
       const main = e.target.value;
@@ -228,7 +282,7 @@ export function initSettingsModule() {
     });
   }
 
-  // --- 3色を自作パレット ---
+  // --- 3色自作パレット ---
   function handleManualColorInput() {
     if (!DOM.colorManualMain || !DOM.colorManualSub || !DOM.colorManualBg) return;
     config.theme = 'custom';
@@ -240,7 +294,6 @@ export function initSettingsModule() {
     applyConfig();
     saveConfig();
   }
-
   if (DOM.colorManualMain) DOM.colorManualMain.addEventListener('input', handleManualColorInput);
   if (DOM.colorManualSub) DOM.colorManualSub.addEventListener('input', handleManualColorInput);
   if (DOM.colorManualBg) DOM.colorManualBg.addEventListener('input', handleManualColorInput);
@@ -263,7 +316,7 @@ export function initSettingsModule() {
       localStorage.setItem(SETUP_DONE_KEY, 'true');
       if (pass) {
         localStorage.setItem(PASSPHRASE_KEY, pass);
-        alert('合言葉を設定しました。次回の起動時から扉が有効になります。');
+        alert('合言葉を設定しました。次回の起動時から有効になります。');
       } else {
         localStorage.removeItem(PASSPHRASE_KEY);
         alert('合言葉を解除しました。');
@@ -285,7 +338,6 @@ export function initSettingsModule() {
       DOM.authInput.focus();
     }
   }
-
   if (DOM.btnAuthUnlock) DOM.btnAuthUnlock.addEventListener('click', tryUnlock);
   if (DOM.authInput) {
     DOM.authInput.addEventListener('keydown', (e) => {
@@ -300,7 +352,6 @@ export function initSettingsModule() {
       if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'none';
     });
   }
-
   if (DOM.btnFirstBootUse) {
     DOM.btnFirstBootUse.addEventListener('click', () => {
       if (DOM.firstBootChoices) DOM.firstBootChoices.style.display = 'none';
@@ -319,9 +370,8 @@ export function initSettingsModule() {
     localStorage.setItem(SETUP_DONE_KEY, 'true');
     if (DOM.inputPassphrase) DOM.inputPassphrase.value = pass;
     if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'none';
-    alert('合言葉を設定しました（忘れた場合は設定画面または救済キーで解除できます）。');
+    alert('合言葉を設定しました。');
   }
-
   if (DOM.btnFirstBootSave) DOM.btnFirstBootSave.addEventListener('click', saveFirstBootPassphrase);
   if (DOM.firstBootPassInput) {
     DOM.firstBootPassInput.addEventListener('keydown', (e) => {
@@ -345,16 +395,21 @@ export function initSettingsModule() {
   // --- 設定の初期化 ---
   if (DOM.btnResetConfig) {
     DOM.btnResetConfig.addEventListener('click', () => {
-      if (!confirm('表示設定（配色・文字サイズ・書体・角丸）を初期状態に戻しますか？\n※カードや合言葉は消えません。')) {
+      if (!confirm('表示設定を初期値に戻しますか？\n※カードや書庫・合言葉は消えません。')) {
         return;
       }
-      config = { ...DEFAULT_CONFIG };
+      config = {
+        ...DEFAULT_CONFIG,
+        displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
+      };
       localStorage.removeItem(CONFIG_KEY);
       applyConfig();
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ preserveScroll: true });
     });
   }
 
   return {
-    load
+    load,
+    getDisplayPrefs: () => ({ ...config.displayPrefs })
   };
 }
