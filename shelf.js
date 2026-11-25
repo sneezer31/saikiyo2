@@ -1,14 +1,51 @@
-/** さいきよ2 - 内蔵 机モジュール（独立スクロール＋時間ベース穏やかエッジスクロール） */
+/** さいきよ2 - 書庫モジュール（単首/リスト枠線区別・D&D・詳細閲覧・個別/全件バックアップ・TL戻し） */
 
-import { saveShelf } from './db.js';
+import {
+  saveCard,
+  loadAllCards,
+  bulkSaveCards,
+  loadAllShelves,
+  getShelf,
+  bulkSaveShelves,
+  deleteShelf
+} from './db.js';
+import { formatDateWithWeekday } from './ui.js';
 
-const PREFS_KEY = 'saikiyo2_rensaku_prefs';
+function makeTimestampStr() {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const hm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${ymd}_${hm}`;
+}
 
-export function initDeskModule({ onSavedToShelf, onOpenReader }) {
-  let prefs = { font: 'gothic', direction: 'horizontal', wrap: 'false' };
-  let orderedCards = [];
-  let finalResultText = '';
-  let currentShelfId = null;
+export function downloadTextFile(jsonStr, fileName) {
+  const blob = new Blob([jsonStr], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function shareOrDownload(jsonStr, fileName, title, text) {
+  const file = new File([jsonStr], fileName, { type: 'text/plain' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title, text });
+      return;
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+  }
+  downloadTextFile(jsonStr, fileName);
+  alert('ファイルとして保存しました。');
+}
+
+export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onCloseWings, onOpenReader }) {
+  let currentDetailShelfId = null;
 
   const drag = {
     item: null,
@@ -18,147 +55,129 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     startX: 0,
     startY: 0,
     origLeft: 0,
-    origTop: 0,
-    offsetX: 0,
     offsetY: 0,
-    lastX: 0,
     lastY: 0,
     lastMoveTime: 0,
-    speedX: 0,
-    speedY: 0,
+    scrollSpeedPxPerSec: 0,
     lastFrameTime: 0,
     rafId: null
   };
 
   const DOM = {
-    panel: document.getElementById('panel-desk'),
-    screenSort: document.getElementById('desk-screen-sort'),
-    screenFinish: document.getElementById('desk-screen-finish'),
-    sortArea: document.getElementById('desk-sort-area'),
-    scrollbar: document.getElementById('desk-custom-scrollbar'),
-    thumb: document.getElementById('desk-custom-thumb'),
-    btnFont: document.getElementById('desk-toggle-font'),
-    btnDir: document.getElementById('desk-toggle-dir'),
-    btnWrap: document.getElementById('desk-toggle-wrap'),
-    btnClose: document.getElementById('desk-btn-close'),
-    btnToFinish: document.getElementById('desk-btn-to-finish'),
-    previewArea: document.getElementById('desk-preview-area'),
-    inputTitle: document.getElementById('desk-shelf-title'),
-    inputMemo: document.getElementById('desk-shelf-memo'),
-    inputTags: document.getElementById('desk-shelf-tags'),
-    btnBackSort: document.getElementById('desk-btn-back-sort'),
-    btnReader: document.getElementById('desk-btn-reader'),
-    btnCopy: document.getElementById('desk-btn-copy'),
-    btnSaveShelf: document.getElementById('desk-btn-save-shelf')
+    panelShelf: document.getElementById('panel-shelf'),
+    shelfListView: document.getElementById('shelf-list-view'),
+    shelfList: document.getElementById('shelf-list'),
+    shelfDetailView: document.getElementById('shelf-detail-view'),
+    shelfDetailTitle: document.getElementById('shelf-detail-title'),
+    shelfDetailMeta: document.getElementById('shelf-detail-meta'),
+    shelfDetailMemo: document.getElementById('shelf-detail-memo'),
+    shelfDetailItems: document.getElementById('shelf-detail-items'),
+    btnShelfBackList: document.getElementById('btn-shelf-back-list'),
+    btnShelfReader: document.getElementById('btn-shelf-reader'),
+    btnShelfCopy: document.getElementById('btn-shelf-copy'),
+    btnShelfBackup: document.getElementById('btn-shelf-backup'),
+    btnShelfReturnScatter: document.getElementById('btn-shelf-return-scatter'),
+    btnShelfReturnBlock: document.getElementById('btn-shelf-return-block'),
+    // 全件バックアップ（書庫に一本化）
+    btnExportShare: document.getElementById('btn-export-share'),
+    btnExportFile: document.getElementById('btn-export-file'),
+    btnExportCopy: document.getElementById('btn-export-copy')
   };
 
-  function loadPrefs() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(PREFS_KEY));
-      if (saved) prefs = { ...prefs, ...saved };
-    } catch (_) {}
-    updateToggleLabels();
+  function showListView() {
+    DOM.shelfDetailView.style.display = 'none';
+    DOM.shelfListView.style.display = 'block';
+    currentDetailShelfId = null;
   }
 
-  function savePrefs() {
-    try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
-    } catch (_) {}
-  }
+  async function renderList() {
+    const shelves = await loadAllShelves();
+    DOM.shelfList.innerHTML = '';
 
-  function updateToggleLabels() {
-    if (DOM.btnFont) DOM.btnFont.textContent = prefs.font === 'mincho' ? '明朝' : 'ゴシック';
-    if (DOM.btnDir) DOM.btnDir.textContent = prefs.direction === 'vertical' ? '縦書き' : '横書き';
-    if (DOM.btnWrap) DOM.btnWrap.textContent = prefs.wrap === 'true' ? '全文表示' : '1行表示';
-  }
-
-  function applyPrefsToSortArea() {
-    DOM.sortArea.className = `dir-${prefs.direction}`;
-    DOM.sortArea.querySelectorAll('.desk-tanzaku').forEach(el => {
-      el.className = `desk-tanzaku font-${prefs.font} dir-${prefs.direction} wrap-${prefs.wrap}`;
-    });
-    updateToggleLabels();
-    savePrefs();
-    requestAnimationFrame(updateCustomScrollbar);
-  }
-
-  function showScreen(target) {
-    DOM.screenSort.classList.toggle('active', target === 'sort');
-    DOM.screenFinish.classList.toggle('active', target === 'finish');
-    if (target === 'sort') requestAnimationFrame(updateCustomScrollbar);
-  }
-
-  function updateListNumbers() {
-    const items = Array.from(DOM.sortArea.querySelectorAll('.desk-tanzaku:not(.dragging)'));
-    items.forEach((el, idx) => {
-      const numEl = el.querySelector('.desk-item-num');
-      if (numEl) numEl.textContent = String(idx + 1);
-    });
-  }
-
-  function updateCustomScrollbar() {
-    if (!DOM.scrollbar || !DOM.thumb || !DOM.panel.classList.contains('active') || !DOM.screenSort.classList.contains('active')) {
-      if (DOM.scrollbar) DOM.scrollbar.style.display = 'none';
+    if (shelves.length === 0) {
+      DOM.shelfList.innerHTML = '<div class="shelf-empty">書庫は空です。カード編集の「書庫へ」または「机へ」から保管できます。</div>';
       return;
     }
 
-    if (prefs.direction === 'vertical') {
-      const sW = DOM.sortArea.scrollWidth;
-      const cW = DOM.sortArea.clientWidth;
-      if (sW <= cW) { DOM.scrollbar.style.display = 'none'; return; }
-      DOM.scrollbar.style.display = 'block';
-      DOM.scrollbar.style.left = '0';
-      DOM.scrollbar.style.right = '0';
-      DOM.scrollbar.style.bottom = '2px';
-      DOM.scrollbar.style.top = 'auto';
-      DOM.scrollbar.style.height = '6px';
-      DOM.scrollbar.style.width = '100%';
-      const thumbW = Math.max(24, (cW / sW) * cW);
-      const ratio = Math.min(1, Math.abs(DOM.sortArea.scrollLeft) / (sW - cW));
-      DOM.thumb.style.height = '100%';
-      DOM.thumb.style.width = `${thumbW}px`;
-      DOM.thumb.style.top = '0';
-      DOM.thumb.style.right = `${ratio * (cW - thumbW)}px`;
-      DOM.thumb.style.left = 'auto';
-    } else {
-      const sH = DOM.sortArea.scrollHeight;
-      const cH = DOM.sortArea.clientHeight;
-      if (sH <= cH) { DOM.scrollbar.style.display = 'none'; return; }
-      DOM.scrollbar.style.display = 'block';
-      DOM.scrollbar.style.top = '0';
-      DOM.scrollbar.style.bottom = '0';
-      DOM.scrollbar.style.right = '2px';
-      DOM.scrollbar.style.left = 'auto';
-      DOM.scrollbar.style.width = '6px';
-      DOM.scrollbar.style.height = '100%';
-      const thumbH = Math.max(24, (cH / sH) * cH);
-      const ratio = Math.min(1, DOM.sortArea.scrollTop / (sH - cH));
-      DOM.thumb.style.width = '100%';
-      DOM.thumb.style.height = `${thumbH}px`;
-      DOM.thumb.style.left = '0';
-      DOM.thumb.style.right = 'auto';
-      DOM.thumb.style.top = `${ratio * (cH - thumbH)}px`;
-    }
+    shelves.sort((a, b) => (a.order ?? a.id) - (b.order ?? b.id));
+
+    shelves.forEach(shelf => {
+      const items = Array.isArray(shelf.items) ? shelf.items : [];
+      const isList = items.length > 1;
+
+      const row = document.createElement('div');
+      row.className = 'shelf-row' + (isList ? ' is-list' : '');
+      row.dataset.id = shelf.id;
+
+      const main = document.createElement('div');
+      main.className = 'shelf-row-main';
+
+      const titleEl = document.createElement('div');
+      titleEl.className = 'shelf-row-title';
+      titleEl.textContent = shelf.title || '無題';
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'shelf-row-meta';
+      const dateStr = formatDateWithWeekday(shelf.id);
+      const tagStr = Array.isArray(shelf.tags) && shelf.tags.length > 0 ? '  ' + shelf.tags.join(' ') : '';
+      metaEl.textContent = isList
+        ? `${items.length} / ${dateStr}${tagStr}`
+        : `${dateStr}${tagStr}`;
+
+      main.appendChild(titleEl);
+      main.appendChild(metaEl);
+      main.addEventListener('click', () => {
+        if (drag.isDragging) return;
+        openDetail(shelf.id);
+      });
+
+      const controls = document.createElement('div');
+      controls.className = 'shelf-row-controls';
+
+      const handle = document.createElement('div');
+      handle.className = 'shelf-handle';
+      handle.innerHTML = '&#9776;';
+      handle.addEventListener('pointerdown', (e) => handlePointerDown(e, row));
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'shelf-del-btn';
+      delBtn.textContent = '×';
+      delBtn.title = '書庫から削除';
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (confirm(`「${shelf.title || '無題'}」を書庫から削除しますか？\n※タイムラインの原本は消えません。`)) {
+          await deleteShelf(shelf.id);
+          await renderList();
+          if (onShelfCountChanged) await onShelfCountChanged();
+        }
+      });
+
+      controls.appendChild(handle);
+      controls.appendChild(delBtn);
+
+      row.appendChild(main);
+      row.appendChild(controls);
+      DOM.shelfList.appendChild(row);
+    });
   }
 
-  DOM.sortArea.addEventListener('scroll', () => requestAnimationFrame(updateCustomScrollbar));
-  window.addEventListener('resize', () => requestAnimationFrame(updateCustomScrollbar));
-
-  // --- D&D（250ms長押し・抜け殻・時間ベース穏やかエッジスクロール） ---
-  function handlePointerDown(e, tanzaku) {
+  // --- D&D並べ替え（250ms長押し・抜け殻・時間ベース穏やかエッジスクロール） ---
+  function handlePointerDown(e, row) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-    drag.item = tanzaku;
+
+    drag.item = row;
     drag.startX = e.clientX;
     drag.startY = e.clientY;
     drag.isDragging = false;
     drag.timer = setTimeout(() => startDrag(e), 250);
 
-    document.addEventListener('pointermove', checkThreshold, { passive: true });
+    document.addEventListener('pointermove', checkDragThreshold, { passive: true });
     document.addEventListener('pointerup', cancelPreDrag);
     document.addEventListener('pointercancel', cancelPreDrag);
   }
 
-  function checkThreshold(e) {
+  function checkDragThreshold(e) {
     if (!drag.item || drag.isDragging) return;
     if (Math.abs(e.clientX - drag.startX) > 10 || Math.abs(e.clientY - drag.startY) > 10) {
       cancelPreDrag();
@@ -169,7 +188,7 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     clearTimeout(drag.timer);
     drag.timer = null;
     drag.item = null;
-    document.removeEventListener('pointermove', checkThreshold);
+    document.removeEventListener('pointermove', checkDragThreshold);
     document.removeEventListener('pointerup', cancelPreDrag);
     document.removeEventListener('pointercancel', cancelPreDrag);
   }
@@ -177,26 +196,19 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
   function startDrag(e) {
     if (!drag.item) return;
     drag.isDragging = true;
-    document.removeEventListener('pointermove', checkThreshold);
+    document.removeEventListener('pointermove', checkDragThreshold);
     document.removeEventListener('pointerup', cancelPreDrag);
     document.removeEventListener('pointercancel', cancelPreDrag);
 
     const rect = drag.item.getBoundingClientRect();
     drag.origLeft = rect.left;
-    drag.origTop = rect.top;
-    drag.offsetX = e.clientX - rect.left;
     drag.offsetY = e.clientY - rect.top;
-    drag.lastX = e.clientX;
     drag.lastY = e.clientY;
 
     drag.placeholder = document.createElement('div');
-    drag.placeholder.className = `desk-placeholder dir-${prefs.direction}`;
-    if (prefs.direction === 'horizontal') {
-      drag.placeholder.style.height = `${rect.height}px`;
-    } else {
-      drag.placeholder.style.width = `${rect.width}px`;
-    }
-    DOM.sortArea.insertBefore(drag.placeholder, drag.item);
+    drag.placeholder.className = 'shelf-placeholder';
+    drag.placeholder.style.height = `${rect.height}px`;
+    DOM.shelfList.insertBefore(drag.placeholder, drag.item);
 
     drag.item.classList.add('dragging');
     drag.item.style.width = `${rect.width}px`;
@@ -214,35 +226,32 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
 
   function checkIntersection() {
     if (!drag.item || !drag.placeholder) return;
-
-    const checkX = prefs.direction === 'vertical' ? drag.lastX : (drag.origLeft + drag.item.offsetWidth / 2);
-    const checkY = prefs.direction === 'horizontal' ? drag.lastY : (drag.origTop + drag.item.offsetHeight / 2);
-
+    const checkX = drag.origLeft + (drag.item.offsetWidth / 2);
+    const checkY = drag.lastY;
     const elements = document.elementsFromPoint(checkX, checkY);
     const target = elements.find(
-      el => el.classList && el.classList.contains('desk-tanzaku') && el.parentNode === DOM.sortArea
+      el => el.classList && el.classList.contains('shelf-row') && el.parentNode === DOM.shelfList
     );
 
     if (target && target !== drag.placeholder && target !== drag.item) {
       const targetRect = target.getBoundingClientRect();
-      if (prefs.direction === 'vertical') {
-        if (checkX > targetRect.left + targetRect.width / 2) {
-          DOM.sortArea.insertBefore(drag.placeholder, target);
-        } else {
-          DOM.sortArea.insertBefore(drag.placeholder, target.nextSibling);
-        }
+      if (checkY < targetRect.top + targetRect.height / 2) {
+        DOM.shelfList.insertBefore(drag.placeholder, target);
       } else {
-        if (checkY < targetRect.top + targetRect.height / 2) {
-          DOM.sortArea.insertBefore(drag.placeholder, target);
-        } else {
-          DOM.sortArea.insertBefore(drag.placeholder, target.nextSibling);
-        }
+        DOM.shelfList.insertBefore(drag.placeholder, target.nextSibling);
+      }
+    } else if (!target) {
+      const listRect = DOM.shelfList.getBoundingClientRect();
+      if (checkY > listRect.bottom) {
+        DOM.shelfList.appendChild(drag.placeholder);
+      } else if (checkY < listRect.top && DOM.shelfList.firstChild) {
+        DOM.shelfList.insertBefore(drag.placeholder, DOM.shelfList.firstChild);
       }
     }
   }
 
   function stepAutoScroll(now) {
-    if (!drag.isDragging || (drag.speedX === 0 && drag.speedY === 0)) {
+    if (!drag.isDragging || drag.scrollSpeedPxPerSec === 0) {
       drag.rafId = null;
       drag.lastFrameTime = 0;
       return;
@@ -251,12 +260,7 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     const dt = Math.min(0.05, (now - drag.lastFrameTime) / 1000);
     drag.lastFrameTime = now;
 
-    if (prefs.direction === 'vertical') {
-      DOM.sortArea.scrollLeft += drag.speedX * dt;
-    } else {
-      DOM.sortArea.scrollTop += drag.speedY * dt;
-    }
-
+    DOM.panelShelf.scrollTop += drag.scrollSpeedPxPerSec * dt;
     checkIntersection();
     drag.rafId = requestAnimationFrame(stepAutoScroll);
   }
@@ -269,49 +273,29 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     if (now - drag.lastMoveTime < 16) return;
     drag.lastMoveTime = now;
 
-    drag.lastX = e.clientX;
     drag.lastY = e.clientY;
+    drag.item.style.left = `${drag.origLeft}px`;
+    drag.item.style.top = `${e.clientY - drag.offsetY}px`;
 
-    if (prefs.direction === 'horizontal') {
-      drag.item.style.left = `${drag.origLeft}px`;
-      drag.item.style.top = `${e.clientY - drag.offsetY}px`;
-    } else {
-      drag.item.style.left = `${e.clientX - drag.offsetX}px`;
-      drag.item.style.top = `${drag.origTop}px`;
-    }
-
-    const areaRect = DOM.sortArea.getBoundingClientRect();
+    const panelRect = DOM.panelShelf.getBoundingClientRect();
     const dragRect = drag.item.getBoundingClientRect();
-    const threshold = 70;
+    const threshold = 72;
     const minSpeed = 70;
     const maxSpeed = 300;
 
-    drag.speedX = 0;
-    drag.speedY = 0;
-
-    if (prefs.direction === 'vertical') {
-      if (dragRect.left < areaRect.left + threshold) {
-        const over = Math.max(0, (areaRect.left + threshold) - dragRect.left);
-        const ratio = Math.min(1, over / threshold);
-        drag.speedX = -(minSpeed + (maxSpeed - minSpeed) * ratio * ratio);
-      } else if (dragRect.right > areaRect.right - threshold) {
-        const over = Math.max(0, dragRect.right - (areaRect.right - threshold));
-        const ratio = Math.min(1, over / threshold);
-        drag.speedX = minSpeed + (maxSpeed - minSpeed) * ratio * ratio;
-      }
+    if (dragRect.top < panelRect.top + threshold) {
+      const over = Math.max(0, (panelRect.top + threshold) - dragRect.top);
+      const ratio = Math.min(1, over / threshold);
+      drag.scrollSpeedPxPerSec = -(minSpeed + (maxSpeed - minSpeed) * ratio * ratio);
+    } else if (dragRect.bottom > panelRect.bottom - threshold) {
+      const over = Math.max(0, dragRect.bottom - (panelRect.bottom - threshold));
+      const ratio = Math.min(1, over / threshold);
+      drag.scrollSpeedPxPerSec = minSpeed + (maxSpeed - minSpeed) * ratio * ratio;
     } else {
-      if (dragRect.top < areaRect.top + threshold) {
-        const over = Math.max(0, (areaRect.top + threshold) - dragRect.top);
-        const ratio = Math.min(1, over / threshold);
-        drag.speedY = -(minSpeed + (maxSpeed - minSpeed) * ratio * ratio);
-      } else if (dragRect.bottom > areaRect.bottom - threshold) {
-        const over = Math.max(0, dragRect.bottom - (areaRect.bottom - threshold));
-        const ratio = Math.min(1, over / threshold);
-        drag.speedY = minSpeed + (maxSpeed - minSpeed) * ratio * ratio;
-      }
+      drag.scrollSpeedPxPerSec = 0;
     }
 
-    if ((drag.speedX !== 0 || drag.speedY !== 0) && !drag.rafId) {
+    if (drag.scrollSpeedPxPerSec !== 0 && !drag.rafId) {
       drag.lastFrameTime = 0;
       drag.rafId = requestAnimationFrame(stepAutoScroll);
     }
@@ -319,18 +303,17 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     checkIntersection();
   }
 
-  function handlePointerUp() {
+  async function handlePointerUp() {
     if (!drag.isDragging || !drag.item) return;
 
-    drag.speedX = 0;
-    drag.speedY = 0;
+    drag.scrollSpeedPxPerSec = 0;
     if (drag.rafId) {
       cancelAnimationFrame(drag.rafId);
       drag.rafId = null;
     }
     drag.lastFrameTime = 0;
 
-    DOM.sortArea.insertBefore(drag.item, drag.placeholder);
+    DOM.shelfList.insertBefore(drag.item, drag.placeholder);
     drag.placeholder.remove();
     drag.placeholder = null;
 
@@ -344,147 +327,204 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     drag.item = null;
     drag.isDragging = false;
 
-    updateListNumbers();
-    updateCustomScrollbar();
+    const ids = Array.from(DOM.shelfList.querySelectorAll('.shelf-row')).map(el => Number(el.dataset.id));
+    const shelves = (await Promise.all(ids.map(id => getShelf(id)))).filter(Boolean);
+    shelves.forEach((shelf, idx) => {
+      shelf.order = idx + 1;
+    });
+    await bulkSaveShelves(shelves);
   }
 
-  function renderTanzakus(cards) {
-    DOM.sortArea.className = `dir-${prefs.direction}`;
-    DOM.sortArea.innerHTML = '';
+  // --- 詳細ビュー ---
+  async function openDetail(shelfId) {
+    const shelf = await getShelf(shelfId);
+    if (!shelf) return;
 
-    cards.forEach((card, index) => {
-      const tanzaku = document.createElement('div');
-      tanzaku.className = `desk-tanzaku font-${prefs.font} dir-${prefs.direction} wrap-${prefs.wrap}`;
-      tanzaku._cardData = card;
+    currentDetailShelfId = shelf.id;
+    DOM.shelfDetailTitle.textContent = shelf.title || '無題';
 
-      const numDiv = document.createElement('div');
-      numDiv.className = 'desk-item-num';
-      numDiv.textContent = String(index + 1);
+    const items = Array.isArray(shelf.items) ? shelf.items : [];
+    const dateStr = formatDateWithWeekday(shelf.id);
+    const tagStr = Array.isArray(shelf.tags) && shelf.tags.length > 0 ? '  ' + shelf.tags.join(' ') : '';
+    DOM.shelfDetailMeta.textContent = items.length > 1
+      ? `${items.length} / ${dateStr}${tagStr}`
+      : `${dateStr}${tagStr}`;
 
-      const textDiv = document.createElement('div');
-      textDiv.className = 'desk-tanzaku-text';
-      textDiv.textContent = card.content;
+    if (shelf.memo && shelf.memo.trim()) {
+      DOM.shelfDetailMemo.style.display = 'block';
+      DOM.shelfDetailMemo.textContent = shelf.memo;
+    } else {
+      DOM.shelfDetailMemo.style.display = 'none';
+    }
 
-      const handle = document.createElement('div');
-      handle.className = 'desk-drag-handle';
-      handle.innerHTML = '&#9776;';
-      handle.addEventListener('pointerdown', (e) => handlePointerDown(e, tanzaku));
+    DOM.shelfDetailItems.innerHTML = '';
+    items.forEach((item, idx) => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'shelf-detail-card';
 
-      tanzaku.appendChild(numDiv);
-      tanzaku.appendChild(textDiv);
-      tanzaku.appendChild(handle);
-      DOM.sortArea.appendChild(tanzaku);
+      const bodyEl = document.createElement('div');
+      bodyEl.className = 'shelf-detail-card-body';
+      bodyEl.textContent = item.content;
+
+      const subEl = document.createElement('div');
+      subEl.className = 'shelf-detail-card-sub';
+      const itemDate = formatDateWithWeekday(item.id);
+      const itemTags = Array.isArray(item.tags) && item.tags.length > 0 ? '  ' + item.tags.join(' ') : '';
+      subEl.textContent = `${idx + 1}. ${itemDate}${itemTags}`;
+
+      cardEl.appendChild(bodyEl);
+      cardEl.appendChild(subEl);
+      DOM.shelfDetailItems.appendChild(cardEl);
     });
 
-    requestAnimationFrame(updateCustomScrollbar);
+    DOM.shelfListView.style.display = 'none';
+    DOM.shelfDetailView.style.display = 'block';
+    DOM.panelShelf.scrollTop = 0;
   }
 
-  // --- ボタンイベント ---
-  DOM.btnFont.addEventListener('click', () => {
-    prefs.font = prefs.font === 'gothic' ? 'mincho' : 'gothic';
-    applyPrefsToSortArea();
-  });
-  DOM.btnDir.addEventListener('click', () => {
-    prefs.direction = prefs.direction === 'horizontal' ? 'vertical' : 'horizontal';
-    applyPrefsToSortArea();
-  });
-  DOM.btnWrap.addEventListener('click', () => {
-    prefs.wrap = prefs.wrap === 'false' ? 'true' : 'false';
-    applyPrefsToSortArea();
+  DOM.btnShelfBackList.addEventListener('click', showListView);
+
+  DOM.btnShelfReader.addEventListener('click', async () => {
+    if (!currentDetailShelfId) return;
+    const shelf = await getShelf(currentDetailShelfId);
+    if (!shelf || !Array.isArray(shelf.items)) return;
+    const text = shelf.items.map(i => i.content).join('\n\n');
+    if (onOpenReader) onOpenReader(shelf.title || '閲覧', text);
   });
 
-  DOM.btnClose.addEventListener('click', () => {
-    DOM.panel.classList.remove('active');
-  });
+  DOM.btnShelfCopy.addEventListener('click', async () => {
+    if (!currentDetailShelfId) return;
+    const shelf = await getShelf(currentDetailShelfId);
+    if (!shelf || !Array.isArray(shelf.items)) return;
 
-  DOM.btnToFinish.addEventListener('click', () => {
-    const els = Array.from(DOM.sortArea.children).filter(
-      el => el.classList.contains('desk-tanzaku') && !el.classList.contains('dragging')
-    );
-    if (els.length === 0) return;
-
-    orderedCards = els.map(el => el._cardData);
-    finalResultText = orderedCards.map(c => c.content).join('\n\n');
-    DOM.previewArea.className = `desk-preview-area font-${prefs.font}`;
-    DOM.previewArea.textContent = finalResultText;
-    showScreen('finish');
-  });
-
-  DOM.btnBackSort.addEventListener('click', () => showScreen('sort'));
-
-  DOM.btnReader.addEventListener('click', () => {
-    if (!finalResultText) return;
-    if (onOpenReader) onOpenReader(`閲覧 (${orderedCards.length})`, finalResultText);
-  });
-
-  DOM.btnCopy.addEventListener('click', async () => {
-    if (!finalResultText) return;
+    const text = shelf.items.map(i => i.content).join('\n\n');
     try {
-      await navigator.clipboard.writeText(finalResultText);
+      await navigator.clipboard.writeText(text);
       alert('コピーしました。');
     } catch (_) {
       alert('コピーに失敗しました。');
     }
   });
 
-  DOM.btnSaveShelf.addEventListener('click', async () => {
-    if (orderedCards.length === 0) return;
+  // 個別書庫バックアップ
+  DOM.btnShelfBackup.addEventListener('click', async () => {
+    if (!currentDetailShelfId) return;
+    const shelf = await getShelf(currentDetailShelfId);
+    if (!shelf) return;
 
-    const now = Date.now();
-    if (!currentShelfId) currentShelfId = now;
+    const payload = {
+      app: 'saikiyo2',
+      version: 2,
+      type: 'shelf_backup',
+      exportedAt: Date.now(),
+      cards: [],
+      shelves: [shelf]
+    };
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const fileName = `saikiyo2_shelf_${makeTimestampStr()}.txt`;
+    await shareOrDownload(jsonStr, fileName, `さいきよ2 書庫バックアップ`, shelf.title || '無題');
+  });
 
-    const firstClean = orderedCards[0].content.replace(/\s+/g, '');
-    const title = DOM.inputTitle.value.trim() || firstClean.slice(0, 5) || '無題';
-    const memo = DOM.inputMemo.value;
-    const tags = DOM.inputTags.value
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map(t => (t.startsWith('#') ? t : '#' + t));
+  async function allocateUniqueIds(count) {
+    const existing = await loadAllCards();
+    const idSet = new Set(existing.map(c => c.id));
+    let cursor = Date.now();
+    const ids = [];
+    for (let i = 0; i < count; i++) {
+      while (idSet.has(cursor)) cursor++;
+      idSet.add(cursor);
+      ids.push(cursor);
+      cursor++;
+    }
+    return ids;
+  }
 
-    const items = orderedCards.map(c => ({
-      id: c.id,
-      content: c.content,
-      memo: c.memo || '',
-      tags: Array.isArray(c.tags) ? [...c.tags] : [],
-      lastupdated: c.lastupdated || c.id
+  DOM.btnShelfReturnScatter.addEventListener('click', async () => {
+    if (!currentDetailShelfId) return;
+    const shelf = await getShelf(currentDetailShelfId);
+    if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
+
+    const ids = await allocateUniqueIds(shelf.items.length);
+    const newCards = shelf.items.map((item, idx) => ({
+      id: ids[idx],
+      content: item.content,
+      memo: item.memo || '',
+      tags: Array.isArray(item.tags) ? [...item.tags] : [],
+      lastupdated: ids[idx]
     }));
 
-    const shelf = {
-      id: currentShelfId,
-      title,
-      memo,
-      tags,
-      items,
-      order: currentShelfId,
-      lastupdated: now
+    await bulkSaveCards(newCards);
+    await onTimelineUpdated();
+    onCloseWings();
+    alert(`バラでタイムラインへ追加しました (${newCards.length})。`);
+  });
+
+  DOM.btnShelfReturnBlock.addEventListener('click', async () => {
+    if (!currentDetailShelfId) return;
+    const shelf = await getShelf(currentDetailShelfId);
+    if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
+
+    const [id] = await allocateUniqueIds(1);
+    const blockCard = {
+      id,
+      content: shelf.items.map(i => i.content).join('\n\n'),
+      memo: shelf.memo || '',
+      tags: Array.isArray(shelf.tags) ? [...shelf.tags] : [],
+      lastupdated: id
     };
 
+    await saveCard(blockCard);
+    await onTimelineUpdated();
+    onCloseWings();
+    alert(`「${shelf.title || '無題'}」をまとめてタイムラインへ追加しました。`);
+  });
+
+  // --- 全件バックアップ（書庫に一本化） ---
+  async function buildFullBackupPayload() {
+    const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
+    return {
+      app: 'saikiyo2',
+      version: 2,
+      exportedAt: Date.now(),
+      cards,
+      shelves
+    };
+  }
+
+  DOM.btnExportShare.addEventListener('click', async () => {
+    const payload = await buildFullBackupPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    const fileName = `saikiyo2_backup_${makeTimestampStr()}.txt`;
+    await shareOrDownload(
+      jsonStr,
+      fileName,
+      `さいきよ2 全件バックアップ`,
+      `カード ${payload.cards.length} ／ 書庫 ${payload.shelves.length}`
+    );
+  });
+
+  DOM.btnExportFile.addEventListener('click', async () => {
+    const payload = await buildFullBackupPayload();
+    const jsonStr = JSON.stringify(payload, null, 2);
+    downloadTextFile(jsonStr, `saikiyo2_backup_${makeTimestampStr()}.txt`);
+  });
+
+  DOM.btnExportCopy.addEventListener('click', async () => {
+    const payload = await buildFullBackupPayload();
+    const jsonStr = JSON.stringify(payload);
     try {
-      await saveShelf(shelf);
-      if (onSavedToShelf) await onSavedToShelf();
-      alert('書庫へ保管しました。');
-      DOM.panel.classList.remove('active');
-    } catch (err) {
-      console.error(err);
-      alert('書庫への保管に失敗しました。');
+      await navigator.clipboard.writeText(jsonStr);
+      alert(`全件バックアップをコピーしました（カード ${payload.cards.length} ／ 書庫 ${payload.shelves.length}）。`);
+    } catch (_) {
+      alert('コピーに失敗しました。');
     }
   });
 
-  loadPrefs();
-
   return {
-    open(cards) {
-      if (!Array.isArray(cards) || cards.length === 0) return;
-      currentShelfId = null;
-      orderedCards = [...cards];
-      finalResultText = '';
-      DOM.inputTitle.value = '';
-      DOM.inputMemo.value = '';
-      DOM.inputTags.value = '';
-      renderTanzakus(orderedCards);
-      showScreen('sort');
-      DOM.panel.classList.add('active');
-    }
+    async open() {
+      showListView();
+      await renderList();
+    },
+    renderList
   };
 }
