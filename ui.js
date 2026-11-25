@@ -1,5 +1,13 @@
-// ui.js - カード描画（500ms長押し＋スクロール10pxキャンセル / PCダブルクリック対応・表示項目トグル）
+// ui.js - カード描画（短め長押し1本化・スクロール即キャンセル・表示項目トグル）
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+
+// カード編集を開くまでの押下時間（ミリ秒）※好みで 200〜300 の範囲で調整可
+const OPEN_HOLD_MS = 250;
+
+let activeCancelPress = null;
+document.addEventListener('scroll', () => {
+  if (activeCancelPress) activeCancelPress();
+}, { passive: true, capture: true });
 
 export function formatDateWithWeekday(timestamp) {
   const d = new Date(timestamp);
@@ -33,7 +41,7 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
     cardEl.appendChild(dateEl);
   }
 
-  // 本文（500ms長押しで編集を開く・指が10px以上動いたらスクロールとみなしてキャンセル）
+  // 本文（OPEN_HOLD_MS 押下で編集を開く・移動10pxまたはスクロールで即キャンセル）
   const bodyEl = document.createElement('div');
   bodyEl.className = 'card-body' + (prefs.oneLine ? ' is-oneline' : '');
   bodyEl.textContent = card.content;
@@ -41,27 +49,30 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
   let pressTimer = null;
   let startX = 0;
   let startY = 0;
-  let openedByPress = false;
 
   const cancelPress = () => {
     if (pressTimer) {
       clearTimeout(pressTimer);
       pressTimer = null;
     }
+    bodyEl.style.opacity = '';
+    if (activeCancelPress === cancelPress) activeCancelPress = null;
   };
 
   bodyEl.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
-    openedByPress = false;
     startX = e.clientX;
     startY = e.clientY;
     cancelPress();
+    activeCancelPress = cancelPress;
+    bodyEl.style.opacity = '0.6';
     pressTimer = setTimeout(() => {
       pressTimer = null;
-      openedByPress = true;
-      if (navigator.vibrate) navigator.vibrate(25);
+      bodyEl.style.opacity = '';
+      if (activeCancelPress === cancelPress) activeCancelPress = null;
+      if (navigator.vibrate) navigator.vibrate(20);
       onOpenEdit(card);
-    }, 500);
+    }, OPEN_HOLD_MS);
   });
 
   bodyEl.addEventListener('pointermove', (e) => {
@@ -74,16 +85,6 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
   bodyEl.addEventListener('pointerup', cancelPress);
   bodyEl.addEventListener('pointercancel', cancelPress);
   bodyEl.addEventListener('pointerleave', cancelPress);
-
-  // PC操作向け補助：ダブルクリックでも開く
-  bodyEl.addEventListener('dblclick', () => {
-    if (openedByPress) {
-      openedByPress = false;
-      return;
-    }
-    cancelPress();
-    onOpenEdit(card);
-  });
 
   cardEl.appendChild(bodyEl);
 
