@@ -1,10 +1,29 @@
-// ui.js - カード描画（標準シングルタップ1本化・スクロール誤爆防止・表示項目トグル）
+// ui.js - カード描画（標準シングルタップ＋押下反応70ms＋標準スクロールガード）
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
-// スクロール中・慣性停止直後のタップ誤爆を弾くための最終スクロール時刻
+// --- 操作感定数（スマホOS標準準拠） ---
+const OPEN_DELAY_MS = 70;       // タップ後に一瞬反応を見せてから開く間（Android標準64ms準拠）
+const SCROLL_GUARD_MS = 200;    // スクロール停止直後の誤爆を防ぐ標準マージン
+const MOVE_TOLERANCE_PX = 8;    // タップとスクロールを分ける移動幅（Android標準8dp準拠）
+
 let lastScrollAt = 0;
+let pendingOpenTimer = null;
+let pendingBodyEl = null;
+
+function cancelPendingOpen() {
+  if (pendingOpenTimer) {
+    clearTimeout(pendingOpenTimer);
+    pendingOpenTimer = null;
+  }
+  if (pendingBodyEl) {
+    pendingBodyEl.style.opacity = '';
+    pendingBodyEl = null;
+  }
+}
+
 document.addEventListener('scroll', () => {
   lastScrollAt = Date.now();
+  cancelPendingOpen();
 }, { passive: true, capture: true });
 
 export function formatDateWithWeekday(timestamp) {
@@ -39,7 +58,7 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
     cardEl.appendChild(dateEl);
   }
 
-  // 本文（通常のシングルタップで編集を開く・スクロールや指ブレは開かない）
+  // 本文（シングルタップ＋70msの押下反応で編集を開く）
   const bodyEl = document.createElement('div');
   bodyEl.className = 'card-body' + (prefs.oneLine ? ' is-oneline' : '');
   bodyEl.textContent = card.content;
@@ -56,15 +75,23 @@ export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange,
 
   bodyEl.addEventListener('pointermove', (e) => {
     if (moved) return;
-    if (Math.abs(e.clientX - startX) > 8 || Math.abs(e.clientY - startY) > 8) {
+    if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE_PX || Math.abs(e.clientY - startY) > MOVE_TOLERANCE_PX) {
       moved = true;
     }
   }, { passive: true });
 
   bodyEl.addEventListener('click', () => {
     if (moved) return;
-    if (Date.now() - lastScrollAt < 150) return;
-    onOpenEdit(card);
+    if (Date.now() - lastScrollAt < SCROLL_GUARD_MS) return;
+
+    cancelPendingOpen();
+    pendingBodyEl = bodyEl;
+    bodyEl.style.opacity = '0.5';
+
+    pendingOpenTimer = setTimeout(() => {
+      cancelPendingOpen();
+      onOpenEdit(card);
+    }, OPEN_DELAY_MS);
   });
 
   cardEl.appendChild(bodyEl);
