@@ -1,28 +1,46 @@
-/** さいきよ2 - データ管理モジュール（初代互換・共有バックアップ・一括取り込み・期間指定・重複整理・月イチゴミ箱削除） */
+/** さいきよ2 - データ管理モジュール（差分取り込み・古いID絶対保護・初代全ステイタスタグ化・重複整理・ローカル隔離ゴミ箱） */
 
 import {
+  saveCard,
   loadAllCards,
   bulkSaveCards,
   deleteCard,
   loadAllShelves,
   bulkSaveShelves
 } from './db.js';
+import { formatDateWithWeekday } from './ui.js';
+import { downloadTextFile } from './shelf.js';
 
-const TRASH_REMIND_KEY = 'saikiyo2_trash_last_remind';
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const TRASH_STORAGE_KEY = 'saikiyo2_trash_box';
+
+function loadTrashList() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TRASH_STORAGE_KEY));
+    return Array.isArray(raw) ? raw : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveTrashList(list) {
+  try {
+    localStorage.setItem(TRASH_STORAGE_KEY, JSON.stringify(list));
+  } catch (err) {
+    console.error(err);
+    alert('ゴミ箱の保存領域がいっぱいです。ゴミ箱をバックアップして空にしてください。');
+  }
+}
+
+function makeTimestampStr() {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const hm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${ymd}_${hm}`;
+}
 
 export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   const DOM = {
     stats: document.getElementById('data-stats'),
-    dmTrashStatus: document.getElementById('dm-trash-status'),
-    btnEmptyTrash: document.getElementById('btn-empty-trash'),
-    trashRemindBar: document.getElementById('trash-remind-bar'),
-    trashRemindText: document.getElementById('trash-remind-text'),
-    btnRemindEmpty: document.getElementById('btn-remind-empty'),
-    btnRemindLater: document.getElementById('btn-remind-later'),
-    btnExportShare: document.getElementById('btn-export-share'),
-    btnExportFile: document.getElementById('btn-export-file'),
-    btnExportCopy: document.getElementById('btn-export-copy'),
     btnImportFile: document.getElementById('btn-import-file'),
     inputImportFile: document.getElementById('input-import-file'),
     inputImportText: document.getElementById('input-import-text'),
@@ -30,182 +48,147 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     inputBulkText: document.getElementById('input-bulk-text'),
     inputBulkTags: document.getElementById('input-bulk-tags'),
     btnBulkImport: document.getElementById('btn-bulk-import'),
-    inputRangeStart: document.getElementById('input-range-start'),
-    inputRangeEnd: document.getElementById('input-range-end'),
-    btnRangeExport: document.getElementById('btn-range-export'),
-    btnRangeTrash: document.getElementById('btn-range-trash'),
-    inputCleanTag: document.getElementById('input-clean-tag'),
-    btnCleanTag: document.getElementById('btn-clean-tag'),
-    btnDedupeCards: document.getElementById('btn-dedupe-cards')
+    btnDedupeCards: document.getElementById('btn-dedupe-cards'),
+    trashList: document.getElementById('trash-list'),
+    btnTrashEmpty: document.getElementById('btn-trash-empty')
   };
+
+  // 旧版でIndexedDB内にdeletedAt付きで入っていたカードをローカルゴミ箱へ自動隔離
+  async function migrateLegacyTrash() {
+    const allCards = await loadAllCards();
+    const legacyTrashed = allCards.filter(c => Boolean(c.deletedAt));
+    if (legacyTrashed.length === 0) return;
+
+    const currentTrash = loadTrashList();
+    const trashIds = new Set(currentTrash.map(c => c.id));
+    legacyTrashed.forEach(c => {
+      if (!trashIds.has(c.id)) {
+        currentTrash.push(c);
+        trashIds.add(c.id);
+      }
+    });
+    saveTrashList(currentTrash);
+    await Promise.all(legacyTrashed.map(c => deleteCard(c.id)));
+  }
+
+  async function moveCardsToTrash(cards) {
+    if (!Array.isArray(cards) || cards.length === 0) return;
+    const now = Date.now();
+    const currentTrash = loadTrashList();
+    const trashMap = new Map(currentTrash.map(c => [c.id, c]));
+
+    cards.forEach(c => {
+      trashMap.set(c.id, {
+        id: c.id,
+        content: c.content,
+        memo: c.memo || '',
+        tags: Array.isArray(c.tags) ? [...c.tags] : [],
+        lastupdated: c.lastupdated || c.id,
+        deletedAt: now
+      });
+    });
+
+    saveTrashList(Array.from(trashMap.values()));
+    await Promise.all(cards.map(c => deleteCard(c.id)));
+    renderTrashList();
+  }
 
   async function updateStats() {
     const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
-    const activeCount = cards.filter(c => !c.deletedAt).length;
-    const trashCount = cards.length - activeCount;
-
-    DOM.stats.textContent = `保存中：カード ${activeCount} 件（ゴミ箱 ${trashCount} 件） ／ 書庫 ${shelves.length} 件`;
-
-    if (DOM.dmTrashStatus && DOM.btnEmptyTrash) {
-      if (trashCount === 0) {
-        DOM.dmTrashStatus.textContent = '現在、ゴミ箱は空です。';
-        DOM.btnEmptyTrash.disabled = true;
-      } else {
-        DOM.dmTrashStatus.textContent = `ゴミ箱に ${trashCount} 件のカードがあります。完全削除の前に、ゴミ箱専用のバックアップ（.txt）を自動保存します。`;
-        DOM.btnEmptyTrash.disabled = false;
-      }
+    if (DOM.stats) {
+      DOM.stats.textContent = `タイムライン ${cards.length} ／ 書庫 ${shelves.length}`;
     }
+    renderTrashList();
   }
 
-  async function buildBackupPayload() {
-    const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
-    return {
-      app: 'saikiyo2',
-      version: 2,
-      exportedAt: Date.now(),
-      cards,
-      shelves
-    };
-  }
+  function renderTrashList() {
+    if (!DOM.trashList) return;
+    const trash = loadTrashList().sort((a, b) => (b.deletedAt || b.id) - (a.deletedAt || a.id));
+    DOM.trashList.innerHTML = '';
 
-  function makeTimestampStr() {
-    const d = new Date();
-    const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
-    const hm = `${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
-    return `${ymd}_${hm}`;
-  }
+    if (DOM.btnTrashEmpty) {
+      DOM.btnTrashEmpty.disabled = trash.length === 0;
+    }
 
-  function makeBackupFileName(prefix = 'saikiyo2_backup') {
-    return `${prefix}_${makeTimestampStr()}.txt`;
-  }
-
-  function downloadTextFile(jsonStr, fileName) {
-    const blob = new Blob([jsonStr], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  async function checkMonthlyTrashReminder() {
-    if (!DOM.trashRemindBar) return;
-    const cards = await loadAllCards();
-    const trashCards = cards.filter(c => Boolean(c.deletedAt));
-
-    if (trashCards.length === 0) {
-      DOM.trashRemindBar.style.display = 'none';
+    if (trash.length === 0) {
+      DOM.trashList.innerHTML = '<div class="shelf-empty">ゴミ箱は空です。</div>';
       return;
     }
 
-    const now = Date.now();
-    const oldestDeletedAt = Math.min(...trashCards.map(c => Number(c.deletedAt) || now));
-    const lastRemind = Number(localStorage.getItem(TRASH_REMIND_KEY)) || 0;
+    trash.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'trash-row';
 
-    const hasOldTrash = (now - oldestDeletedAt) >= THIRTY_DAYS_MS;
-    const isCooldownPassed = (now - lastRemind) >= THIRTY_DAYS_MS;
+      const bodyWrap = document.createElement('div');
+      bodyWrap.className = 'trash-row-body';
+      bodyWrap.textContent = item.content;
 
-    if (hasOldTrash && isCooldownPassed) {
-      DOM.trashRemindText.textContent = `ゴミ箱に ${trashCards.length} 件たまっています。月イチの整理として、バックアップファイル（.txt）を作ってから完全に削除しますか？`;
-      DOM.trashRemindBar.style.display = 'flex';
-    } else {
-      DOM.trashRemindBar.style.display = 'none';
-    }
-  }
+      const meta = document.createElement('div');
+      meta.className = 'trash-row-meta';
+      const tagsStr = Array.isArray(item.tags) && item.tags.length > 0 ? '  ' + item.tags.join(' ') : '';
+      meta.textContent = `${formatDateWithWeekday(item.id)}${tagsStr}`;
+      bodyWrap.appendChild(meta);
 
-  async function emptyTrashWithBackup() {
-    const cards = await loadAllCards();
-    const trashCards = cards.filter(c => Boolean(c.deletedAt));
+      const restoreBtn = document.createElement('button');
+      restoreBtn.type = 'button';
+      restoreBtn.className = 'trash-restore-btn';
+      restoreBtn.textContent = '戻す';
+      restoreBtn.addEventListener('click', async () => {
+        const existingCards = await loadAllCards();
+        const existingIds = new Set(existingCards.map(c => c.id));
+        let targetId = item.id;
+        // 元のIDがすでにタイムラインにある場合は古い方を守り、1msズラして戻す
+        while (existingIds.has(targetId)) targetId++;
 
-    if (trashCards.length === 0) {
-      alert('ゴミ箱は空です。');
-      return;
-    }
+        await saveCard({
+          id: targetId,
+          content: item.content,
+          memo: item.memo || '',
+          tags: Array.isArray(item.tags) ? [...item.tags] : [],
+          lastupdated: Date.now()
+        });
 
-    const trashPayload = {
-      app: 'saikiyo2',
-      version: 2,
-      type: 'trash_archive',
-      exportedAt: Date.now(),
-      cards: trashCards,
-      shelves: []
-    };
+        const nextTrash = loadTrashList().filter(t => t.id !== item.id);
+        saveTrashList(nextTrash);
+        await onDataChanged();
+        await updateStats();
+      });
 
-    const fileName = makeBackupFileName('saikiyo2_trash_backup');
-    downloadTextFile(JSON.stringify(trashPayload, null, 2), fileName);
-
-    if (!confirm(`ゴミ箱の ${trashCards.length} 件をバックアップファイル（${fileName}）に保存しました。\n\nこのままゴミ箱から完全に削除しますか？（この操作は取り消せません）`)) {
-      return;
-    }
-
-    const deletedIdSet = new Set(trashCards.map(c => c.id));
-    await Promise.all(trashCards.map(c => deleteCard(c.id)));
-
-    localStorage.setItem(TRASH_REMIND_KEY, String(Date.now()));
-    if (DOM.trashRemindBar) DOM.trashRemindBar.style.display = 'none';
-
-    await onCardsDeleted(deletedIdSet);
-    await updateStats();
-    alert(`ゴミ箱の ${trashCards.length} 件を完全に削除しました。`);
-  }
-
-  if (DOM.btnEmptyTrash) DOM.btnEmptyTrash.addEventListener('click', emptyTrashWithBackup);
-  if (DOM.btnRemindEmpty) DOM.btnRemindEmpty.addEventListener('click', emptyTrashWithBackup);
-  if (DOM.btnRemindLater) {
-    DOM.btnRemindLater.addEventListener('click', () => {
-      localStorage.setItem(TRASH_REMIND_KEY, String(Date.now()));
-      DOM.trashRemindBar.style.display = 'none';
+      row.appendChild(bodyWrap);
+      row.appendChild(restoreBtn);
+      DOM.trashList.appendChild(row);
     });
   }
 
-  if (DOM.btnExportShare) {
-    DOM.btnExportShare.addEventListener('click', async () => {
-      const payload = await buildBackupPayload();
-      const jsonStr = JSON.stringify(payload, null, 2);
-      const fileName = makeBackupFileName();
-      const file = new File([jsonStr], fileName, { type: 'text/plain' });
+  if (DOM.btnTrashEmpty) {
+    DOM.btnTrashEmpty.addEventListener('click', async () => {
+      const trash = loadTrashList();
+      if (trash.length === 0) return;
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: `さいきよ2 バックアップ (${fileName})`,
-            text: `カード ${payload.cards.length} 件 ／ 書庫 ${payload.shelves.length} 件`
-          });
-          return;
-        } catch (err) {
-          if (err && err.name === 'AbortError') return;
-        }
+      const payload = {
+        app: 'saikiyo2',
+        version: 2,
+        type: 'trash_archive',
+        exportedAt: Date.now(),
+        cards: trash,
+        shelves: []
+      };
+      const fileName = `saikiyo2_trash_${makeTimestampStr()}.txt`;
+      downloadTextFile(JSON.stringify(payload, null, 2), fileName);
+
+      if (!confirm(`ゴミ箱のバックアップ（${fileName}）を保存しました。\n\nこのままゴミ箱を空にしますか？（${trash.length}・取り消し不可）`)) {
+        return;
       }
 
-      downloadTextFile(jsonStr, fileName);
-      alert('この端末では直接共有に非対応のため、.txt ファイルとして保存しました。');
+      saveTrashList([]);
+      renderTrashList();
+      alert('ゴミ箱を空にしました。');
     });
   }
 
-  DOM.btnExportFile.addEventListener('click', async () => {
-    const payload = await buildBackupPayload();
-    const jsonStr = JSON.stringify(payload, null, 2);
-    downloadTextFile(jsonStr, makeBackupFileName());
-  });
-
-  DOM.btnExportCopy.addEventListener('click', async () => {
-    const payload = await buildBackupPayload();
-    const jsonStr = JSON.stringify(payload);
-    try {
-      await navigator.clipboard.writeText(jsonStr);
-      alert(`バックアップ用データ（カード${payload.cards.length}件・書庫${payload.shelves.length}件）をコピーしました。`);
-    } catch (_) {
-      alert('コピーに失敗しました。');
-    }
-  });
-
+  // 初代ステイタスを含め、付いているステイタスは間引かずすべて #タグ 化
   function normalizeTags(rawTags, status, publishStatus) {
     const tagSet = new Set();
-
     const addTag = (t) => {
       const cleaned = String(t || '').trim();
       if (!cleaned) return;
@@ -218,16 +201,13 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       rawTags.trim().split(/\s+/).forEach(addTag);
     }
 
-    if (status === 'アーカイブ') addTag('#アーカイブ');
-    else if (status === '作品') addTag('#作品');
-
-    if (publishStatus === '既発表') addTag('#既発表');
-    else if (publishStatus === '未発表') addTag('#未発表');
+    if (typeof status === 'string' && status.trim()) addTag(status);
+    if (typeof publishStatus === 'string' && publishStatus.trim()) addTag(publishStatus);
 
     return Array.from(tagSet);
   }
 
-  function normalizeCard(raw, fallbackOffset) {
+  function normalizeCard(raw, fallbackId) {
     if (!raw || typeof raw !== 'object') return null;
     const content = typeof raw.content === 'string'
       ? raw.content
@@ -235,7 +215,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     if (content === null) return null;
 
     const idNum = Number(raw.id);
-    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
+    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : fallbackId;
     const deletedAtNum = raw.deletedAt ? Number(raw.deletedAt) : null;
 
     return {
@@ -244,28 +224,35 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       memo: typeof raw.memo === 'string' ? raw.memo : '',
       tags: normalizeTags(raw.tags, raw.status, raw.publish_status),
       lastupdated: Number(raw.lastupdated) || id,
-      deletedAt: (deletedAtNum && !Number.isNaN(deletedAtNum)) ? deletedAtNum : null
+      _legacyDeletedAt: (deletedAtNum && !Number.isNaN(deletedAtNum)) ? deletedAtNum : null
     };
   }
 
-  function convertLegacyListToShelf(rawList, cardLookupMap, fallbackOffset) {
+  function convertLegacyListToShelf(rawList, cardLookupMap, fallbackId) {
     const idNum = Number(rawList.id);
-    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
+    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : fallbackId;
     const title = (typeof rawList.content === 'string' && rawList.content.trim())
       ? rawList.content.trim()
-      : '無題のリスト';
+      : '無題';
 
     const rawItemIds = Array.isArray(rawList.items) ? rawList.items : [];
     const items = [];
-    let missingCount = 0;
 
-    rawItemIds.forEach(itemRef => {
+    rawItemIds.forEach((itemRef, idx) => {
       if (itemRef && typeof itemRef === 'object' && typeof itemRef.content === 'string') {
-        items.push(normalizeCard(itemRef, 0));
+        const c = normalizeCard(itemRef, id + idx + 1);
+        if (c) {
+          items.push({
+            id: c.id,
+            content: c.content,
+            memo: c.memo,
+            tags: c.tags,
+            lastupdated: c.lastupdated
+          });
+        }
         return;
       }
-      const refId = Number(itemRef);
-      const found = cardLookupMap.get(refId);
+      const found = cardLookupMap.get(Number(itemRef));
       if (found) {
         items.push({
           id: found.id,
@@ -274,12 +261,10 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
           tags: Array.isArray(found.tags) ? [...found.tags] : [],
           lastupdated: found.lastupdated || found.id
         });
-      } else {
-        missingCount++;
       }
     });
 
-    const shelf = {
+    return {
       id,
       title,
       memo: typeof rawList.memo === 'string' ? rawList.memo : '',
@@ -288,17 +273,25 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       order: Number(rawList.order) || id,
       lastupdated: Number(rawList.lastupdated) || id
     };
-
-    return { shelf, missingCount };
   }
 
-  function normalizeV2Shelf(rawShelf, fallbackOffset) {
+  function normalizeV2Shelf(rawShelf, fallbackId) {
     if (!rawShelf || typeof rawShelf !== 'object' || !Array.isArray(rawShelf.items)) return null;
     const idNum = Number(rawShelf.id);
-    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : (Date.now() + fallbackOffset);
+    const id = !Number.isNaN(idNum) && idNum > 0 ? idNum : fallbackId;
 
     const items = rawShelf.items
-      .map((item, idx) => normalizeCard(item, idx))
+      .map((item, idx) => {
+        const c = normalizeCard(item, id + idx + 1);
+        if (!c) return null;
+        return {
+          id: c.id,
+          content: c.content,
+          memo: c.memo,
+          tags: c.tags,
+          lastupdated: c.lastupdated
+        };
+      })
       .filter(Boolean);
 
     return {
@@ -312,21 +305,25 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     };
   }
 
+  // --- ファイル取り込み（差分：同一IDは古い原本を絶対に残す） ---
   async function importBackupJson(rawText) {
     let parsed;
     try {
       parsed = JSON.parse(rawText.trim());
     } catch (_) {
-      alert('ファイルの中身が正しいJSON形式ではありません。');
+      alert('正しいJSON形式ではありません。');
       return;
     }
 
-    const existingCards = await loadAllCards();
+    const [existingCards, existingShelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
+    const existingCardIds = new Set(existingCards.map(c => c.id));
+    const existingShelfIds = new Set(existingShelves.map(s => s.id));
     const cardLookupMap = new Map(existingCards.map(c => [c.id, c]));
 
     const rawCardItems = [];
     const rawLegacyLists = [];
     const rawV2Shelves = [];
+    const isTrashArchive = Boolean(parsed && !Array.isArray(parsed) && parsed.type === 'trash_archive');
 
     if (Array.isArray(parsed)) {
       parsed.forEach(entry => {
@@ -350,59 +347,88 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       }
     }
 
-    const cardsToImport = rawCardItems
-      .map((c, idx) => normalizeCard(c, idx))
-      .filter(Boolean);
+    let fallbackCursor = Date.now();
+    const cardsToAdd = [];
+    const trashedToIsolate = [];
+    let skippedCards = 0;
 
-    cardsToImport.forEach(c => cardLookupMap.set(c.id, c));
+    rawCardItems.forEach(raw => {
+      const normalized = normalizeCard(raw, fallbackCursor++);
+      if (!normalized) return;
 
-    const shelvesToImport = [];
-    let legacyListCount = 0;
-    let totalMissingRefs = 0;
-    const legacyListIds = new Set();
+      if (!cardLookupMap.has(normalized.id)) {
+        cardLookupMap.set(normalized.id, normalized);
+      }
 
-    rawV2Shelves.forEach((s, idx) => {
-      const normalized = normalizeV2Shelf(s, idx);
-      if (normalized) shelvesToImport.push(normalized);
+      if (existingCardIds.has(normalized.id)) {
+        skippedCards++;
+        return;
+      }
+
+      existingCardIds.add(normalized.id);
+      const cleanCard = {
+        id: normalized.id,
+        content: normalized.content,
+        memo: normalized.memo,
+        tags: normalized.tags,
+        lastupdated: normalized.lastupdated
+      };
+
+      if (!isTrashArchive && normalized._legacyDeletedAt) {
+        trashedToIsolate.push({ ...cleanCard, deletedAt: normalized._legacyDeletedAt });
+      } else {
+        cardsToAdd.push(cleanCard);
+      }
     });
 
-    rawLegacyLists.forEach((rawList, idx) => {
-      const { shelf, missingCount } = convertLegacyListToShelf(rawList, cardLookupMap, idx);
-      shelvesToImport.push(shelf);
-      legacyListIds.add(shelf.id);
-      legacyListCount++;
-      totalMissingRefs += missingCount;
+    const shelvesToAdd = [];
+    let skippedShelves = 0;
+
+    rawV2Shelves.forEach(rawShelf => {
+      const s = normalizeV2Shelf(rawShelf, fallbackCursor++);
+      if (!s) return;
+      if (existingShelfIds.has(s.id)) {
+        skippedShelves++;
+        return;
+      }
+      existingShelfIds.add(s.id);
+      shelvesToAdd.push(s);
     });
 
-    if (cardsToImport.length === 0 && shelvesToImport.length === 0) {
-      alert('読み込めるデータが見つかりませんでした。');
+    rawLegacyLists.forEach(rawList => {
+      const s = convertLegacyListToShelf(rawList, cardLookupMap, fallbackCursor++);
+      if (existingShelfIds.has(s.id)) {
+        skippedShelves++;
+        return;
+      }
+      existingShelfIds.add(s.id);
+      shelvesToAdd.push(s);
+    });
+
+    if (cardsToAdd.length === 0 && shelvesToAdd.length === 0 && trashedToIsolate.length === 0) {
+      alert(`新しく追加するデータはありませんでした（既存保護スキップ：カード ${skippedCards} ／ 書庫 ${skippedShelves}）。`);
       return;
     }
 
-    if (cardsToImport.length > 0) await bulkSaveCards(cardsToImport);
-    if (shelvesToImport.length > 0) await bulkSaveShelves(shelvesToImport);
-
-    const pollutedCardIds = existingCards
-      .filter(c => legacyListIds.has(c.id))
-      .map(c => c.id);
-
-    if (pollutedCardIds.length > 0) {
-      await Promise.all(pollutedCardIds.map(id => deleteCard(id)));
-      await onCardsDeleted(new Set(pollutedCardIds));
+    if (cardsToAdd.length > 0) await bulkSaveCards(cardsToAdd);
+    if (shelvesToAdd.length > 0) await bulkSaveShelves(shelvesToAdd);
+    if (trashedToIsolate.length > 0) {
+      const currentTrash = loadTrashList();
+      const tIds = new Set(currentTrash.map(t => t.id));
+      trashedToIsolate.forEach(t => {
+        if (!tIds.has(t.id)) currentTrash.push(t);
+      });
+      saveTrashList(currentTrash);
     }
 
     await onDataChanged();
     await updateStats();
-    await checkMonthlyTrashReminder();
 
-    let summary = `復元が完了しました。\n・カード：${cardsToImport.length} 件\n・書庫：${shelvesToImport.length} 件`;
-    if (legacyListCount > 0) {
-      summary += `（うち初代リストから自動変換：${legacyListCount} 件）`;
+    let msg = `取り込み完了\n・カード追加：${cardsToAdd.length}\n・書庫追加：${shelvesToAdd.length}`;
+    if (skippedCards > 0 || skippedShelves > 0) {
+      msg += `\n・既存ID保護スキップ：カード ${skippedCards} ／ 書庫 ${skippedShelves}`;
     }
-    if (totalMissingRefs > 0) {
-      summary += `\n※書庫内の元カードIDが見つからなかった項目：${totalMissingRefs} 件`;
-    }
-    alert(summary);
+    alert(msg);
   }
 
   DOM.btnImportFile.addEventListener('click', () => {
@@ -420,237 +446,135 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   DOM.btnImportText.addEventListener('click', async () => {
     const raw = DOM.inputImportText.value.trim();
     if (!raw) {
-      alert('JSONテキストが入力されていません。');
+      alert('テキストが入力されていません。');
       return;
     }
     await importBackupJson(raw);
     DOM.inputImportText.value = '';
   });
 
-  if (DOM.btnBulkImport) {
-    DOM.btnBulkImport.addEventListener('click', async () => {
-      const raw = DOM.inputBulkText.value;
-      if (!raw.trim()) {
-        alert('取り込むテキストを入力してください。');
+  // --- テキスト取り込み（差分：1行空きで別カード・ミリ秒ズラし一意ID・既存本文スキップ） ---
+  DOM.btnBulkImport.addEventListener('click', async () => {
+    const raw = DOM.inputBulkText.value;
+    if (!raw.trim()) {
+      alert('取り込むテキストを入力してください。');
+      return;
+    }
+
+    const blocks = raw
+      .split(/\r?\n\s*\r?\n/)
+      .map(b => b.trim())
+      .filter(Boolean);
+
+    if (blocks.length === 0) {
+      alert('取り込めるテキストがありませんでした。');
+      return;
+    }
+
+    const existingCards = await loadAllCards();
+    const existingIds = new Set(existingCards.map(c => c.id));
+    const existingContents = new Set(existingCards.map(c => (c.content || '').trim()));
+
+    const tags = normalizeTags(DOM.inputBulkTags ? DOM.inputBulkTags.value : '');
+    let idCursor = Date.now();
+    const newCards = [];
+    let skipped = 0;
+
+    blocks.forEach(content => {
+      if (existingContents.has(content)) {
+        skipped++;
         return;
       }
-
-      const blocks = raw
-        .split(/\r?\n\s*\r?\n/)
-        .map(b => b.trim())
-        .filter(Boolean);
-
-      if (blocks.length === 0) {
-        alert('取り込めるテキストが見つかりませんでした。');
-        return;
-      }
-
-      const tags = normalizeTags(DOM.inputBulkTags ? DOM.inputBulkTags.value : '');
-      const baseNow = Date.now();
-      const newCards = blocks.map((content, idx) => ({
-        id: baseNow + idx,
+      existingContents.add(content);
+      while (existingIds.has(idCursor)) idCursor++;
+      existingIds.add(idCursor);
+      newCards.push({
+        id: idCursor,
         content,
         memo: '',
         tags: [...tags],
-        lastupdated: baseNow + idx,
-        deletedAt: null
-      }));
-
-      await bulkSaveCards(newCards);
-      DOM.inputBulkText.value = '';
-      if (DOM.inputBulkTags) DOM.inputBulkTags.value = '';
-
-      await onDataChanged();
-      await updateStats();
-      alert(`${newCards.length} 件のカードを一括取り込みしました。`);
+        lastupdated: idCursor
+      });
+      idCursor++;
     });
-  }
 
-  async function getCardsInSelectedRange() {
-    const startVal = DOM.inputRangeStart ? DOM.inputRangeStart.value : '';
-    const endVal = DOM.inputRangeEnd ? DOM.inputRangeEnd.value : '';
-
-    if (!startVal && !endVal) {
-      alert('開始または終了の日時を指定してください。');
-      return null;
-    }
-
-    const startMs = startVal ? new Date(startVal).getTime() : -Infinity;
-    const endMs = endVal ? new Date(endVal).getTime() : Infinity;
-
-    if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
-      alert('日時の形式が正しくありません。');
-      return null;
-    }
-
-    if (startMs > endMs) {
-      alert('開始日時は終了日時より前に設定してください。');
-      return null;
-    }
-
-    const allCards = await loadAllCards();
-    const targets = allCards
-      .filter(c => !c.deletedAt && c.id >= startMs && c.id <= endMs)
-      .sort((a, b) => a.id - b.id);
-
-    if (targets.length === 0) {
-      alert('指定期間内に該当する通常カードはありません。');
-      return null;
-    }
-
-    return targets;
-  }
-
-  if (DOM.btnRangeExport) {
-    DOM.btnRangeExport.addEventListener('click', async () => {
-      const targets = await getCardsInSelectedRange();
-      if (!targets) return;
-
-      const payload = {
-        app: 'saikiyo2',
-        version: 2,
-        type: 'range_export',
-        exportedAt: Date.now(),
-        cards: targets,
-        shelves: []
-      };
-
-      const fileName = makeBackupFileName('saikiyo2_range');
-      downloadTextFile(JSON.stringify(payload, null, 2), fileName);
-      alert(`指定期間の ${targets.length} 件を ${fileName} として書き出しました。`);
-    });
-  }
-
-  if (DOM.btnRangeTrash) {
-    DOM.btnRangeTrash.addEventListener('click', async () => {
-      const targets = await getCardsInSelectedRange();
-      if (!targets) return;
-
-      if (!confirm(`指定期間のカード ${targets.length} 件を書き出したうえで、ゴミ箱へ移動しますか？\n※ゴミ箱からいつでも元に戻せます。`)) {
-        return;
-      }
-
-      const payload = {
-        app: 'saikiyo2',
-        version: 2,
-        type: 'range_trash_backup',
-        exportedAt: Date.now(),
-        cards: targets,
-        shelves: []
-      };
-      const fileName = makeBackupFileName('saikiyo2_range_backup');
-      downloadTextFile(JSON.stringify(payload, null, 2), fileName);
-
-      const now = Date.now();
-      const updated = targets.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
-      await bulkSaveCards(updated);
-
-      await onCardsDeleted(new Set(targets.map(c => c.id)));
-      await updateStats();
-      alert(`${targets.length} 件を ${fileName} に退避し、ゴミ箱へ移動しました。`);
-    });
-  }
-
-  document.querySelectorAll('.dm-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      DOM.inputCleanTag.value = btn.dataset.tag;
-    });
-  });
-
-  DOM.btnCleanTag.addEventListener('click', async () => {
-    const rawTag = DOM.inputCleanTag.value.trim();
-    if (!rawTag) {
-      alert('対象タグを入力してください。');
-      return;
-    }
-    const targetTag = rawTag.startsWith('#') ? rawTag : '#' + rawTag;
-    const allCards = await loadAllCards();
-    const targets = allCards.filter(c => !c.deletedAt && Array.isArray(c.tags) && c.tags.includes(targetTag));
-
-    if (targets.length === 0) {
-      alert(`タグ「${targetTag}」が付いた通常カードは 0 件です。`);
+    if (newCards.length === 0) {
+      alert(`すべて既存の本文と一致したためスキップしました (${skipped})。`);
       return;
     }
 
-    if (!confirm(`タグ「${targetTag}」のカード ${targets.length} 件をゴミ箱へ移動しますか？\n※ゴミ箱からいつでも元に戻せます。`)) {
-      return;
-    }
+    await bulkSaveCards(newCards);
+    DOM.inputBulkText.value = '';
+    if (DOM.inputBulkTags) DOM.inputBulkTags.value = '';
 
-    const now = Date.now();
-    const updated = targets.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
-    await bulkSaveCards(updated);
-
-    await onCardsDeleted(new Set(targets.map(c => c.id)));
+    await onDataChanged();
     await updateStats();
-    alert(`${targets.length} 件のカードをゴミ箱へ移動しました。`);
+    const skipNote = skipped > 0 ? `（既存一致スキップ ${skipped}）` : '';
+    alert(`テキストを取り込みました：追加 ${newCards.length}${skipNote}`);
   });
 
-  if (DOM.btnDedupeCards) {
-    DOM.btnDedupeCards.addEventListener('click', async () => {
-      const allCards = await loadAllCards();
-      const activeCards = allCards
-        .filter(c => !c.deletedAt)
-        .sort((a, b) => a.id - b.id);
+  // --- 重複整理（古いIDを残し新しい方をローカルゴミ箱へ） ---
+  DOM.btnDedupeCards.addEventListener('click', async () => {
+    const allCards = await loadAllCards();
+    allCards.sort((a, b) => a.id - b.id);
 
-      const seen = new Map();
-      const duplicates = [];
-      const idMap = new Map();
+    const seen = new Map();
+    const duplicates = [];
+    const idMap = new Map();
 
-      activeCards.forEach(card => {
-        const sortedTags = Array.isArray(card.tags) ? [...card.tags].sort().join(',') : '';
-        const key = `${card.content}::${sortedTags}::${card.memo || ''}`;
-        if (seen.has(key)) {
-          duplicates.push(card);
-          idMap.set(card.id, seen.get(key));
-        } else {
-          seen.set(key, card.id);
-        }
-      });
-
-      if (duplicates.length === 0) {
-        alert('重複するカードはありませんでした。');
-        return;
+    allCards.forEach(card => {
+      const sortedTags = Array.isArray(card.tags) ? [...card.tags].sort().join(',') : '';
+      const key = `${card.content}::${sortedTags}::${card.memo || ''}`;
+      if (seen.has(key)) {
+        duplicates.push(card);
+        idMap.set(card.id, seen.get(key));
+      } else {
+        seen.set(key, card.id);
       }
-
-      if (!confirm(`完全一致する重複カードが ${duplicates.length} 件見つかりました。\n古いほうを残し、新しい ${duplicates.length} 件をゴミ箱へ移動しますか？`)) {
-        return;
-      }
-
-      const now = Date.now();
-      const trashedDuplicates = duplicates.map(c => ({ ...c, deletedAt: now, lastupdated: now }));
-      await bulkSaveCards(trashedDuplicates);
-
-      const allShelves = await loadAllShelves();
-      const updatedShelves = [];
-      allShelves.forEach(shelf => {
-        if (!Array.isArray(shelf.items)) return;
-        let changed = false;
-        const nextItems = shelf.items.map(item => {
-          if (item && idMap.has(item.id)) {
-            changed = true;
-            return { ...item, id: idMap.get(item.id) };
-          }
-          return item;
-        });
-        if (changed) {
-          updatedShelves.push({ ...shelf, items: nextItems, lastupdated: now });
-        }
-      });
-      if (updatedShelves.length > 0) {
-        await bulkSaveShelves(updatedShelves);
-      }
-
-      await onCardsDeleted(new Set(duplicates.map(c => c.id)));
-      await onDataChanged();
-      await updateStats();
-
-      const shelfNote = updatedShelves.length > 0 ? `（書庫 ${updatedShelves.length} 件の参照IDも修復）` : '';
-      alert(`重複カード ${duplicates.length} 件をゴミ箱へ移動しました。${shelfNote}`);
     });
-  }
+
+    if (duplicates.length === 0) {
+      alert('重複カードはありませんでした。');
+      return;
+    }
+
+    if (!confirm(`完全一致する重複が ${duplicates.length} 見つかりました。\n古いIDを残し、新しい方だけをゴミ箱へ移しますか？`)) {
+      return;
+    }
+
+    await moveCardsToTrash(duplicates);
+
+    const allShelves = await loadAllShelves();
+    const now = Date.now();
+    const updatedShelves = [];
+    allShelves.forEach(shelf => {
+      if (!Array.isArray(shelf.items)) return;
+      let changed = false;
+      const nextItems = shelf.items.map(item => {
+        if (item && idMap.has(item.id)) {
+          changed = true;
+          return { ...item, id: idMap.get(item.id) };
+        }
+        return item;
+      });
+      if (changed) {
+        updatedShelves.push({ ...shelf, items: nextItems, lastupdated: now });
+      }
+    });
+    if (updatedShelves.length > 0) {
+      await bulkSaveShelves(updatedShelves);
+    }
+
+    await onCardsDeleted(new Set(duplicates.map(c => c.id)));
+    await onDataChanged();
+    await updateStats();
+    alert(`重複を整理しました (${duplicates.length})。`);
+  });
 
   return {
+    migrateLegacyTrash,
+    moveCardsToTrash,
     updateStats,
-    checkMonthlyTrashReminder
+    renderTrashList
   };
 }
