@@ -222,4 +222,194 @@ export function initSettingsModule({ onDisplayPrefsChanged } = {}) {
       config.displayPrefs[key] = !config.displayPrefs[key];
       applyConfig();
       saveConfig();
-      if (onDisplay
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ preserveScroll: true });
+    });
+  });
+
+  document.querySelectorAll('[data-sort]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.displayPrefs.sortOrder = btn.dataset.sort;
+      applyConfig();
+      saveConfig();
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ forceBottom: true });
+    });
+  });
+
+  // --- テーマ・サイズ・書体・角丸 ---
+  document.querySelectorAll('[data-config-theme]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.theme = btn.dataset.configTheme;
+      config.customColors = null;
+      applyConfig();
+      saveConfig();
+    });
+  });
+
+  document.querySelectorAll('[data-config-size]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.size = btn.dataset.configSize;
+      applyConfig();
+      saveConfig();
+    });
+  });
+
+  document.querySelectorAll('[data-config-font]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.font = btn.dataset.configFont;
+      applyConfig();
+      saveConfig();
+    });
+  });
+
+  document.querySelectorAll('[data-config-radius]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      config.radius = btn.dataset.configRadius;
+      applyConfig();
+      saveConfig();
+    });
+  });
+
+  // --- 1色自動生成パレット ---
+  if (DOM.colorAutoPicker) {
+    DOM.colorAutoPicker.addEventListener('input', (e) => {
+      const main = e.target.value;
+      const sub = mixHex(main, '#FFFFFF', 0.85);
+      const bg = mixHex(main, '#FFFFFF', 0.95);
+      config.theme = 'custom';
+      config.customColors = { main, sub, bg };
+      applyConfig();
+      saveConfig();
+    });
+  }
+
+  // --- 3色自作パレット ---
+  function handleManualColorInput() {
+    if (!DOM.colorManualMain || !DOM.colorManualSub || !DOM.colorManualBg) return;
+    config.theme = 'custom';
+    config.customColors = {
+      main: DOM.colorManualMain.value,
+      sub: DOM.colorManualSub.value,
+      bg: DOM.colorManualBg.value
+    };
+    applyConfig();
+    saveConfig();
+  }
+  if (DOM.colorManualMain) DOM.colorManualMain.addEventListener('input', handleManualColorInput);
+  if (DOM.colorManualSub) DOM.colorManualSub.addEventListener('input', handleManualColorInput);
+  if (DOM.colorManualBg) DOM.colorManualBg.addEventListener('input', handleManualColorInput);
+
+  // --- アプリ名変更 ---
+  if (DOM.btnSaveAppTitle) {
+    DOM.btnSaveAppTitle.addEventListener('click', () => {
+      const next = DOM.inputAppTitle ? DOM.inputAppTitle.value.trim() : '';
+      const finalTitle = next || 'さいきよ2';
+      localStorage.setItem(TITLE_KEY, finalTitle);
+      applyAppTitle();
+      alert(`アプリ名を「${finalTitle}」に変更しました。`);
+    });
+  }
+
+  // --- 合言葉の設定・解除 ---
+  if (DOM.btnSavePassphrase) {
+    DOM.btnSavePassphrase.addEventListener('click', () => {
+      const pass = DOM.inputPassphrase ? DOM.inputPassphrase.value.trim() : '';
+      localStorage.setItem(SETUP_DONE_KEY, 'true');
+      if (pass) {
+        localStorage.setItem(PASSPHRASE_KEY, pass);
+        alert('合言葉を設定しました。次回の起動時から有効になります。');
+      } else {
+        localStorage.removeItem(PASSPHRASE_KEY);
+        alert('合言葉を解除しました。');
+      }
+    });
+  }
+
+  // --- 扉の開門処理 ---
+  function tryUnlock() {
+    if (!DOM.authInput || !DOM.panelAuth) return;
+    const entered = DOM.authInput.value.trim();
+    const expected = localStorage.getItem(PASSPHRASE_KEY);
+    if (entered === expected || entered === MASTER_KEY) {
+      DOM.panelAuth.style.display = 'none';
+      DOM.authInput.value = '';
+    } else {
+      alert('合言葉が違います。');
+      DOM.authInput.value = '';
+      DOM.authInput.focus();
+    }
+  }
+  if (DOM.btnAuthUnlock) DOM.btnAuthUnlock.addEventListener('click', tryUnlock);
+  if (DOM.authInput) {
+    DOM.authInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') tryUnlock();
+    });
+  }
+
+  // --- 初回セットアップ ---
+  if (DOM.btnFirstBootSkip) {
+    DOM.btnFirstBootSkip.addEventListener('click', () => {
+      localStorage.setItem(SETUP_DONE_KEY, 'true');
+      if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'none';
+    });
+  }
+  if (DOM.btnFirstBootUse) {
+    DOM.btnFirstBootUse.addEventListener('click', () => {
+      if (DOM.firstBootChoices) DOM.firstBootChoices.style.display = 'none';
+      if (DOM.firstBootInputArea) DOM.firstBootInputArea.style.display = 'flex';
+      if (DOM.firstBootPassInput) DOM.firstBootPassInput.focus();
+    });
+  }
+
+  function saveFirstBootPassphrase() {
+    const pass = DOM.firstBootPassInput ? DOM.firstBootPassInput.value.trim() : '';
+    if (!pass) {
+      alert('合言葉を入力してください。');
+      return;
+    }
+    localStorage.setItem(PASSPHRASE_KEY, pass);
+    localStorage.setItem(SETUP_DONE_KEY, 'true');
+    if (DOM.inputPassphrase) DOM.inputPassphrase.value = pass;
+    if (DOM.panelFirstBoot) DOM.panelFirstBoot.style.display = 'none';
+    alert('合言葉を設定しました。');
+  }
+  if (DOM.btnFirstBootSave) DOM.btnFirstBootSave.addEventListener('click', saveFirstBootPassphrase);
+  if (DOM.firstBootPassInput) {
+    DOM.firstBootPassInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveFirstBootPassphrase();
+    });
+  }
+
+  // --- 全画面切替 ---
+  if (DOM.btnToggleFullscreen) {
+    DOM.btnToggleFullscreen.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {
+          alert('このブラウザでは全画面表示を利用できません。');
+        });
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    });
+  }
+
+  // --- 設定の初期化 ---
+  if (DOM.btnResetConfig) {
+    DOM.btnResetConfig.addEventListener('click', () => {
+      if (!confirm('表示設定を初期値に戻しますか？\n※カードや書庫・合言葉は消えません。')) {
+        return;
+      }
+      config = {
+        ...DEFAULT_CONFIG,
+        displayPrefs: { ...DEFAULT_DISPLAY_PREFS }
+      };
+      localStorage.removeItem(CONFIG_KEY);
+      applyConfig();
+      if (onDisplayPrefsChanged) onDisplayPrefsChanged({ preserveScroll: true });
+    });
+  }
+
+  return {
+    load,
+    getDisplayPrefs: () => ({ ...config.displayPrefs })
+  };
+}
