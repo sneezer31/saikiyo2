@@ -43,8 +43,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     stats: document.getElementById('data-stats'),
     btnImportFile: document.getElementById('btn-import-file'),
     inputImportFile: document.getElementById('input-import-file'),
-    inputImportText: document.getElementById('input-import-text'),
-    btnImportText: document.getElementById('btn-import-text'),
     inputBulkText: document.getElementById('input-bulk-text'),
     inputBulkTags: document.getElementById('input-bulk-tags'),
     btnBulkImport: document.getElementById('btn-bulk-import'),
@@ -311,7 +309,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     try {
       parsed = JSON.parse(rawText.trim());
     } catch (_) {
-      alert('正しいJSON形式ではありません。');
+      alert('取り込めるファイル形式ではありません。');
       return;
     }
 
@@ -441,16 +439,6 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     if (!file) return;
     const text = await file.text();
     await importBackupJson(text);
-  });
-
-  DOM.btnImportText.addEventListener('click', async () => {
-    const raw = DOM.inputImportText.value.trim();
-    if (!raw) {
-      alert('テキストが入力されていません。');
-      return;
-    }
-    await importBackupJson(raw);
-    DOM.inputImportText.value = '';
   });
 
   // --- テキスト取り込み（差分：1行空きで別カード・ミリ秒ズラし一意ID・既存本文スキップ） ---
