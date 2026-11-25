@@ -80,8 +80,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     btnShelfReturnBlock: document.getElementById('btn-shelf-return-block'),
     // 全件バックアップ（書庫に一本化）
     btnExportShare: document.getElementById('btn-export-share'),
-    btnExportFile: document.getElementById('btn-export-file'),
-    btnExportCopy: document.getElementById('btn-export-copy')
+    btnExportFile: document.getElementById('btn-export-file')
   };
 
   function showListView() {
@@ -507,17 +506,6 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     const payload = await buildFullBackupPayload();
     const jsonStr = JSON.stringify(payload, null, 2);
     downloadTextFile(jsonStr, `saikiyo2_backup_${makeTimestampStr()}.txt`);
-  });
-
-  DOM.btnExportCopy.addEventListener('click', async () => {
-    const payload = await buildFullBackupPayload();
-    const jsonStr = JSON.stringify(payload);
-    try {
-      await navigator.clipboard.writeText(jsonStr);
-      alert(`全件バックアップをコピーしました（カード ${payload.cards.length} ／ 書庫 ${payload.shelves.length}）。`);
-    } catch (_) {
-      alert('コピーに失敗しました。');
-    }
   });
 
   return {
