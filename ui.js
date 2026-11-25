@@ -1,4 +1,4 @@
-// ui.js
+// ui.js - カード描画（500ms長押し＋スクロール10pxキャンセル / PCダブルクリック対応・表示項目トグル）
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
 export function formatDateWithWeekday(timestamp) {
@@ -12,64 +12,126 @@ export function formatDateWithWeekday(timestamp) {
   return `${y}/${m}/${day}（${w}）${hh}:${mm}`;
 }
 
-export function createTankaCard(card, isSelected, onCheckChange, onOpenEdit, showMemoFull = false) {
+export function createTankaCard(card, { isSelected, displayPrefs, onCheckChange, onOpenEdit }) {
+  const prefs = displayPrefs || {
+    showDate: false,
+    showCheck: true,
+    showTags: true,
+    showMemo: false,
+    oneLine: false
+  };
+
   const cardEl = document.createElement('div');
-  cardEl.className = 'card';
+  cardEl.className = 'card' + (prefs.oneLine ? ' is-compact' : '');
   cardEl.dataset.id = card.id;
 
-  // 上段：本文（350ms以内のダブルタップで編集パネルを開く）
+  // 日時（設定でONのときのみ）
+  if (prefs.showDate) {
+    const dateEl = document.createElement('div');
+    dateEl.className = 'card-date';
+    dateEl.textContent = formatDateWithWeekday(card.id);
+    cardEl.appendChild(dateEl);
+  }
+
+  // 本文（500ms長押しで編集を開く・指が10px以上動いたらスクロールとみなしてキャンセル）
   const bodyEl = document.createElement('div');
-  bodyEl.className = 'card-body';
+  bodyEl.className = 'card-body' + (prefs.oneLine ? ' is-oneline' : '');
   bodyEl.textContent = card.content;
 
-  let lastTapTime = 0;
-  bodyEl.addEventListener('click', () => {
-    const now = Date.now();
-    if (now - lastTapTime <= 350) {
-      lastTapTime = 0;
-      onOpenEdit(card);
-    } else {
-      lastTapTime = now;
+  let pressTimer = null;
+  let startX = 0;
+  let startY = 0;
+  let openedByPress = false;
+
+  const cancelPress = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
     }
+  };
+
+  bodyEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    openedByPress = false;
+    startX = e.clientX;
+    startY = e.clientY;
+    cancelPress();
+    pressTimer = setTimeout(() => {
+      pressTimer = null;
+      openedByPress = true;
+      if (navigator.vibrate) navigator.vibrate(25);
+      onOpenEdit(card);
+    }, 500);
+  });
+
+  bodyEl.addEventListener('pointermove', (e) => {
+    if (!pressTimer) return;
+    if (Math.abs(e.clientX - startX) > 10 || Math.abs(e.clientY - startY) > 10) {
+      cancelPress();
+    }
+  }, { passive: true });
+
+  bodyEl.addEventListener('pointerup', cancelPress);
+  bodyEl.addEventListener('pointercancel', cancelPress);
+  bodyEl.addEventListener('pointerleave', cancelPress);
+
+  // PC操作向け補助：ダブルクリックでも開く
+  bodyEl.addEventListener('dblclick', () => {
+    if (openedByPress) {
+      openedByPress = false;
+      return;
+    }
+    cancelPress();
+    onOpenEdit(card);
   });
 
   cardEl.appendChild(bodyEl);
 
-  // オプション：メモ本文のインライン表示
+  // メモ本文インライン表示
   const hasMemo = Boolean(card.memo && card.memo.trim());
-  if (showMemoFull && hasMemo) {
+  if (prefs.showMemo && hasMemo) {
     const memoEl = document.createElement('div');
     memoEl.className = 'card-memo-preview';
     memoEl.textContent = card.memo;
     cardEl.appendChild(memoEl);
   }
 
-  // 下段：チェックボックス ＋ メタデータ（タグ・メモ有無）
-  const metaWrap = document.createElement('div');
-  metaWrap.className = 'card-meta-wrap';
+  // 下段：チェックボックス ＋ タグ・メモ印
+  const tagsText = prefs.showTags && Array.isArray(card.tags) && card.tags.length > 0
+    ? card.tags.join(' ')
+    : '';
+  const memoMark = !prefs.showMemo && hasMemo ? '[メモ]' : '';
+  const metaText = [tagsText, memoMark].filter(Boolean).join(' ');
 
-  const checkWrap = document.createElement('div');
-  checkWrap.className = 'card-check-wrap';
+  if (prefs.showCheck || metaText) {
+    const metaWrap = document.createElement('div');
+    metaWrap.className = 'card-meta-wrap';
 
-  const chk = document.createElement('input');
-  chk.type = 'checkbox';
-  chk.className = 'card-check';
-  chk.checked = isSelected;
-  chk.addEventListener('change', (e) => {
-    onCheckChange(card.id, e.target.checked);
-  });
-  checkWrap.appendChild(chk);
+    if (prefs.showCheck) {
+      const checkWrap = document.createElement('div');
+      checkWrap.className = 'card-check-wrap';
 
-  const metaInfo = document.createElement('div');
-  metaInfo.className = 'card-meta-info';
-  const tagsText = Array.isArray(card.tags) && card.tags.length > 0 ? card.tags.join(' ') : '';
-  const memoMark = !showMemoFull && hasMemo ? ' [メモ]' : '';
-  metaInfo.textContent = `${tagsText}${memoMark}`.trim();
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.className = 'card-check';
+      chk.checked = isSelected;
+      chk.addEventListener('change', (e) => {
+        onCheckChange(card.id, e.target.checked);
+      });
+      checkWrap.appendChild(chk);
+      metaWrap.appendChild(checkWrap);
+    }
 
-  metaWrap.appendChild(checkWrap);
-  metaWrap.appendChild(metaInfo);
+    if (metaText) {
+      const metaInfo = document.createElement('div');
+      metaInfo.className = 'card-meta-info';
+      metaInfo.textContent = metaText;
+      metaWrap.appendChild(metaInfo);
+    }
 
-  cardEl.appendChild(metaWrap);
+    cardEl.appendChild(metaWrap);
+  }
+
   return cardEl;
 }
 
@@ -79,13 +141,11 @@ export function updateSelectionBarUI(selectedCount, DOM) {
   if (selectedCount > 0) {
     DOM.selectionDock.classList.add('open');
     DOM.selectionDock.setAttribute('aria-hidden', 'false');
-    DOM.selectionCount.textContent = `${selectedCount}件選択`;
-    DOM.footerBar.style.display = 'none';
+    DOM.selectionCount.textContent = String(selectedCount);
+    DOM.btnFab.style.display = 'none';
   } else {
     DOM.selectionDock.classList.remove('open');
     DOM.selectionDock.setAttribute('aria-hidden', 'true');
-    if (!isConsoleOpen) {
-      DOM.footerBar.style.display = 'block';
-    }
+    DOM.btnFab.style.display = isConsoleOpen ? 'none' : 'flex';
   }
 }
