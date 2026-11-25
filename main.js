@@ -1,4 +1,4 @@
-/** さいきよ2 - メイン司令塔（左上アコーディオン・状態表示ボタン・書庫・ギアチェンジ検索・大型選択ドック） */
+/** さいきよ2 - メイン司令塔（3入口UI：表示・書庫・＋ / 期間・タグ・タグ編集・タイムマシン / 内蔵机） */
 
 import {
   initDB,
@@ -6,7 +6,6 @@ import {
   loadAllCards,
   getCard,
   bulkSaveCards,
-  deleteCard,
   saveShelf
 } from './db.js';
 import { createTankaCard, updateSelectionBarUI, formatDateWithWeekday } from './ui.js';
@@ -14,37 +13,29 @@ import { initShelfModule } from './shelf.js';
 import { initDataManagerModule } from './dataManager.js';
 import { initSearchModule } from './search.js';
 import { initSettingsModule } from './settings.js';
+import { initDeskModule } from './desk.js';
 
 const SCROLL_POS_KEY = 'saikiyo2_scroll_pos';
 
-let state = {
-  viewScope: 'active',       // 'active' | 'trash'
-  filterTags: new Set(),     // タグ名 または '__NO_TAG__'
+const state = {
   filterDateFrom: '',
   filterDateTo: '',
-  sortOrder: 'asc',          // 'asc' | 'desc'
-  memoMode: 'badge',         // 'badge' | 'full'
+  filterTagQuery: '',
+  tagEditScope: 'filtered', // 'filtered'（表示期間対象） | 'all'（全期間対象）
   selectedIds: new Set(),
   lastRenderedIds: [],
   editingCardId: null,
   batchOriginalTags: new Set(),
-  activeWing: null,          // null | 'display' | 'design' | 'config' | 'data' | 'shelf'
-  isAccordionOpen: false
+  activeWing: null          // null | 'display' | 'shelf'
 };
 
 const DOM = {
   timeline: document.getElementById('timeline'),
-  btnLeftWing: document.getElementById('btn-left-wing'),
-  leftAccordion: document.getElementById('left-wing-accordion'),
+  btnOpenDisplay: document.getElementById('btn-open-display'),
   btnTop: document.getElementById('btn-top'),
-  btnRightWing: document.getElementById('btn-right-wing'),
   btnOpenShelf: document.getElementById('btn-open-shelf'),
   btnFab: document.getElementById('btn-fab'),
-  trashModeBanner: document.getElementById('trash-mode-banner'),
-  btnExitTrashMode: document.getElementById('btn-exit-trash-mode'),
-  footerBar: document.getElementById('footer-bar'),
-  footerNormal: document.getElementById('footer-normal'),
-  // 右端フロート選択ドック
+  // 右端選択ドック
   selectionDock: document.getElementById('selection-dock'),
   selectionCount: document.getElementById('selection-count'),
   btnSelectAll: document.getElementById('btn-select-all'),
@@ -58,7 +49,7 @@ const DOM = {
   inputTags: document.getElementById('input-tags'),
   btnSearch: document.getElementById('btn-search'),
   btnSend: document.getElementById('btn-send'),
-  // 編集パネル
+  // カード編集パネル
   panelEdit: document.getElementById('panel-edit'),
   editPanelTitle: document.getElementById('edit-panel-title'),
   btnCloseEdit: document.getElementById('btn-close-edit'),
@@ -69,13 +60,11 @@ const DOM = {
   editMemo: document.getElementById('edit-memo'),
   editTags: document.getElementById('edit-tags'),
   editTagsHint: document.getElementById('edit-tags-hint'),
-  editRestoreRow: document.getElementById('edit-restore-row'),
-  btnRestoreEdit: document.getElementById('btn-restore-edit'),
-  btnSaveEdit: document.getElementById('btn-save-edit'),
   btnDeleteEdit: document.getElementById('btn-delete-edit'),
   btnCopyEdit: document.getElementById('btn-copy-edit'),
   btnShelfEdit: document.getElementById('btn-shelf-edit'),
-  // 鑑賞モード（広げて読む）
+  btnSaveEdit: document.getElementById('btn-save-edit'),
+  // 閲覧パネル
   panelReader: document.getElementById('panel-reader'),
   readerTitle: document.getElementById('reader-title'),
   readerContent: document.getElementById('reader-content'),
@@ -83,53 +72,68 @@ const DOM = {
   btnCloseReader: document.getElementById('btn-close-reader'),
   // ウィングパネル
   panelDisplay: document.getElementById('panel-display'),
-  panelDesign: document.getElementById('panel-design'),
-  panelConfig: document.getElementById('panel-config'),
-  panelData: document.getElementById('panel-data'),
   panelShelf: document.getElementById('panel-shelf'),
-  // 表示パネル
+  // 表示パネル内コントロール
   btnDisplayReset: document.getElementById('btn-display-reset'),
   displayStatus: document.getElementById('display-status'),
-  btnScopeTrash: document.getElementById('btn-scope-trash'),
-  displayTagList: document.getElementById('display-tag-list'),
   filterDateFrom: document.getElementById('filter-date-from'),
   filterDateTo: document.getElementById('filter-date-to'),
-  dateJumpInput: document.getElementById('date-jump-input'),
-  btnDateJump: document.getElementById('btn-date-jump'),
-  btnJumpLatest: document.getElementById('btn-jump-latest')
+  btnClearDate: document.getElementById('btn-clear-date'),
+  filterTagInput: document.getElementById('filter-tag-input'),
+  btnClearTag: document.getElementById('btn-clear-tag'),
+  tagEditFrom: document.getElementById('tag-edit-from'),
+  tagEditTo: document.getElementById('tag-edit-to'),
+  btnTagReplace: document.getElementById('btn-tag-replace'),
+  tagEditAdd: document.getElementById('tag-edit-add'),
+  btnTagAdd: document.getElementById('btn-tag-add'),
+  btnTagClearAll: document.getElementById('btn-tag-clear-all'),
+  tagEditActiveList: document.getElementById('tag-edit-active-list'),
+  timemachineDate: document.getElementById('timemachine-date'),
+  btnTimemachineGo: document.getElementById('btn-timemachine-go'),
+  btnTimemachineBack: document.getElementById('btn-timemachine-back')
 };
 
-// --- スマートスクロール判定＆位置記憶 ---
-function isTimelineAtLatest() {
-  if (state.sortOrder === 'desc') {
-    return DOM.timeline.scrollTop <= 40;
-  }
-  return (DOM.timeline.scrollHeight - DOM.timeline.scrollTop) <= (DOM.timeline.clientHeight + 40);
+// --- 閲覧パネル ---
+function openReader(title, text) {
+  DOM.readerTitle.textContent = title || '閲覧';
+  DOM.readerContent.textContent = text || '';
+  DOM.panelReader.scrollTop = 0;
+  DOM.panelReader.classList.add('active');
 }
 
-let scrollSaveTimer = null;
-DOM.timeline.addEventListener('scroll', () => {
-  if (state.viewScope !== 'active' || hasActiveFilter()) return;
-  clearTimeout(scrollSaveTimer);
-  scrollSaveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(SCROLL_POS_KEY, String(DOM.timeline.scrollTop));
-    } catch (_) {}
-  }, 120);
+DOM.btnCloseReader.addEventListener('click', () => {
+  DOM.panelReader.classList.remove('active');
+});
+
+DOM.btnReaderCopy.addEventListener('click', async () => {
+  const text = DOM.readerContent.textContent;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    alert('コピーしました。');
+  } catch (_) {
+    alert('コピーに失敗しました。');
+  }
 });
 
 // --- サブモジュール初期化 ---
-const settingsModule = initSettingsModule();
+const settingsModule = initSettingsModule({
+  onDisplayPrefsChanged: async (opts) => {
+    await renderTimeline(opts);
+  }
+});
 
 const shelfModule = initShelfModule({
   onTimelineUpdated: () => renderTimeline({ forceBottom: true }),
-  onCloseWings: closeAllWings
+  onShelfCountChanged: () => dataManagerModule.updateStats(),
+  onCloseWings: closeAllWings,
+  onOpenReader: openReader
 });
 
 const dataManagerModule = initDataManagerModule({
   onDataChanged: async () => {
     await renderTimeline({ preserveScroll: true });
-    await shelfModule.updateBadge();
+    await shelfModule.renderList();
   },
   onCardsDeleted: async (deletedIdSet) => {
     deletedIdSet.forEach(id => state.selectedIds.delete(id));
@@ -143,122 +147,82 @@ const searchModule = initSearchModule({
   onClearInputs: () => adjustTimelinePadding({ allowAutoScroll: false }),
   onSearchStateChanged: async (opts = {}) => {
     await renderTimeline(opts);
-    updateHeaderWingButtons();
+    if (state.activeWing === 'display') await renderDisplayPanel();
   }
 });
 
-// --- ウィングパネル＆左上アコーディオン制御 ---
-const wingPanels = {
-  display: DOM.panelDisplay,
-  design: DOM.panelDesign,
-  config: DOM.panelConfig,
-  data: DOM.panelData,
-  shelf: DOM.panelShelf
-};
+const deskModule = initDeskModule({
+  onSavedToShelf: async () => {
+    state.selectedIds.clear();
+    DOM.timeline.querySelectorAll('.card-check').forEach(chk => { chk.checked = false; });
+    updateSelectionBar();
+    await shelfModule.renderList();
+    await dataManagerModule.updateStats();
+  },
+  onOpenReader: openReader
+});
 
+// --- スクロール位置判定・記憶 ---
+function getSortOrder() {
+  return settingsModule.getDisplayPrefs().sortOrder || 'asc';
+}
+
+function isTimelineAtLatest() {
+  if (getSortOrder() === 'desc') {
+    return DOM.timeline.scrollTop <= 40;
+  }
+  return (DOM.timeline.scrollHeight - DOM.timeline.scrollTop) <= (DOM.timeline.clientHeight + 40);
+}
+
+let scrollSaveTimer = null;
+DOM.timeline.addEventListener('scroll', () => {
+  if (hasActiveFilter()) return;
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(SCROLL_POS_KEY, String(DOM.timeline.scrollTop));
+    } catch (_) {}
+  }, 120);
+});
+
+// --- ウィングパネル制御 ---
 function hasActiveFilter() {
   return Boolean(
     searchModule.isActive() ||
-    state.filterTags.size > 0 ||
     state.filterDateFrom ||
-    state.filterDateTo
+    state.filterDateTo ||
+    state.filterTagQuery.trim()
   );
 }
 
-function setAccordionOpen(open) {
-  state.isAccordionOpen = open;
-  if (DOM.leftAccordion) {
-    DOM.leftAccordion.classList.toggle('open', open);
-    DOM.leftAccordion.setAttribute('aria-hidden', open ? 'false' : 'true');
-  }
-  if (DOM.btnLeftWing) {
-    DOM.btnLeftWing.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-  updateHeaderWingButtons();
-}
-
-function updateHeaderWingButtons() {
-  const filterMark = hasActiveFilter() ? '●' : '';
-  const arrow = state.isAccordionOpen ? '▴' : '▾';
-
-  let currentLabel = state.viewScope === 'trash' ? `ゴミ箱${filterMark}` : `タイムライン${filterMark}`;
-  let isLeftPanelActive = false;
-
-  if (state.activeWing === 'display') {
-    currentLabel = `表示${filterMark}`;
-    isLeftPanelActive = true;
-  } else if (state.activeWing === 'design') {
-    currentLabel = '設定';
-    isLeftPanelActive = true;
-  } else if (state.activeWing === 'config') {
-    currentLabel = 'コンフィグ';
-    isLeftPanelActive = true;
-  }
-
-  DOM.btnLeftWing.textContent = `${currentLabel} ${arrow}`;
-  DOM.btnLeftWing.classList.toggle('is-active', isLeftPanelActive || state.isAccordionOpen);
-
-  // アコーディオン内のアクティブ項目を現在状態に同期
-  const activeKey = (state.activeWing === 'display' || state.activeWing === 'design' || state.activeWing === 'config')
-    ? state.activeWing
-    : 'none';
-  document.querySelectorAll('.accordion-item').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.wingTarget === activeKey);
-  });
-
-  DOM.btnRightWing.classList.toggle('is-active', state.activeWing === 'data');
-  DOM.trashModeBanner.style.display = state.viewScope === 'trash' ? 'flex' : 'none';
+function updateHeaderButtons() {
+  DOM.btnOpenDisplay.classList.toggle('is-active', state.activeWing === 'display');
+  DOM.btnOpenShelf.classList.toggle('is-active', state.activeWing === 'shelf');
 }
 
 async function openWing(wingName) {
-  setAccordionOpen(false);
-  Object.values(wingPanels).forEach(p => { if (p) p.classList.remove('active'); });
+  DOM.panelDisplay.classList.remove('active');
+  DOM.panelShelf.classList.remove('active');
   state.activeWing = wingName;
 
-  if (wingName && wingPanels[wingName]) {
-    wingPanels[wingName].classList.add('active');
-    if (wingName === 'display') {
-      await renderDisplayPanel();
-    } else if (wingName === 'shelf') {
-      await shelfModule.open();
-    } else if (wingName === 'data') {
-      await dataManagerModule.updateStats();
-    }
+  if (wingName === 'display') {
+    DOM.panelDisplay.classList.add('active');
+    await renderDisplayPanel();
+  } else if (wingName === 'shelf') {
+    DOM.panelShelf.classList.add('active');
+    await shelfModule.open();
+    await dataManagerModule.updateStats();
   }
-  updateHeaderWingButtons();
+  updateHeaderButtons();
 }
 
 function closeAllWings() {
   openWing(null);
 }
 
-// 左上ボタン：アコーディオンの開閉トグル
-DOM.btnLeftWing.addEventListener('click', (e) => {
-  e.stopPropagation();
-  setAccordionOpen(!state.isAccordionOpen);
-});
-
-// アコーディオン各項目の選択
-document.querySelectorAll('.accordion-item').forEach(btn => {
-  btn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const target = btn.dataset.wingTarget;
-    if (target === 'none') closeAllWings();
-    else await openWing(target);
-  });
-});
-
-// アコーディオン外をクリックしたら閉じる
-document.addEventListener('click', (e) => {
-  if (!state.isAccordionOpen) return;
-  if (DOM.leftAccordion && DOM.leftAccordion.contains(e.target)) return;
-  if (DOM.btnLeftWing && DOM.btnLeftWing.contains(e.target)) return;
-  setAccordionOpen(false);
-});
-
-DOM.btnRightWing.addEventListener('click', () => {
-  if (state.activeWing === 'data') closeAllWings();
-  else openWing('data');
+DOM.btnOpenDisplay.addEventListener('click', () => {
+  if (state.activeWing === 'display') closeAllWings();
+  else openWing('display');
 });
 
 DOM.btnOpenShelf.addEventListener('click', () => {
@@ -270,81 +234,42 @@ document.querySelectorAll('.btn-close-wing').forEach(btn => {
   btn.addEventListener('click', closeAllWings);
 });
 
-DOM.btnExitTrashMode.addEventListener('click', async () => {
-  state.viewScope = 'active';
-  state.selectedIds.clear();
-  updateSelectionBar();
-  await renderTimeline({ forceBottom: true });
-  updateHeaderWingButtons();
-});
-
 DOM.btnTop.addEventListener('click', () => {
-  if (state.activeWing || state.isAccordionOpen) closeAllWings();
-  const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+  if (state.activeWing) closeAllWings();
+  const targetTop = getSortOrder() === 'desc' ? 0 : DOM.timeline.scrollHeight;
   DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
 });
 
-// --- 日付ジャンプ ---
-if (DOM.btnDateJump) {
-  DOM.btnDateJump.addEventListener('click', () => {
-    const val = DOM.dateJumpInput ? DOM.dateJumpInput.value : '';
-    if (!val) {
-      alert('移動したい日付を指定してください。');
-      return;
-    }
+// --- 期間・タグ絞り込みロジック（AND / OR / タグ無し対応） ---
+function matchTagQuery(card, rawQuery) {
+  const normalized = (rawQuery || '')
+    .replace(/[｜│❘]/g, '|')
+    .replace(/ /g, ' ')
+    .trim();
+  if (!normalized) return true;
 
-    const cards = Array.from(DOM.timeline.querySelectorAll('.card'));
-    let targetEl = null;
+  const orGroups = normalized
+    .split('|')
+    .map(g => g.trim().split(/\s+/).filter(Boolean))
+    .filter(terms => terms.length > 0);
+  if (orGroups.length === 0) return true;
 
-    if (state.sortOrder === 'asc') {
-      const targetTs = new Date(`${val}T00:00:00`).getTime();
-      targetEl = cards.find(el => Number(el.dataset.id) >= targetTs);
-    } else {
-      const targetTs = new Date(`${val}T23:59:59.999`).getTime();
-      targetEl = cards.find(el => Number(el.dataset.id) <= targetTs);
-    }
+  const cardTags = Array.isArray(card.tags) ? card.tags : [];
+  const lowerTags = cardTags.map(t => t.toLowerCase());
 
-    if (!targetEl) {
-      alert('指定した日付付近に該当するカードがありません。');
-      return;
-    }
-
-    closeAllWings();
-    targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-}
-
-if (DOM.btnJumpLatest) {
-  DOM.btnJumpLatest.addEventListener('click', () => {
-    closeAllWings();
-    const targetTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
-    DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
-  });
-}
-
-// --- 表示パネル（対象切替・絞り込み・並び順・メモ表示） ---
-function filterByScope(allCards) {
-  return state.viewScope === 'trash'
-    ? allCards.filter(c => Boolean(c.deletedAt))
-    : allCards.filter(c => !c.deletedAt);
+  return orGroups.some(andTerms =>
+    andTerms.every(term => {
+      if (term === 'タグ無し' || term === 'タグなし') {
+        return cardTags.length === 0;
+      }
+      const withHash = (term.startsWith('#') ? term : '#' + term).toLowerCase();
+      return lowerTags.includes(withHash);
+    })
+  );
 }
 
 function filterCards(allCards) {
-  let result = filterByScope(allCards);
-
-  if (state.filterTags.size > 0) {
-    result = result.filter(c => {
-      const cardTags = Array.isArray(c.tags) ? c.tags : [];
-      for (const reqTag of state.filterTags) {
-        if (reqTag === '__NO_TAG__') {
-          if (cardTags.length > 0) return false;
-        } else {
-          if (!cardTags.includes(reqTag)) return false;
-        }
-      }
-      return true;
-    });
-  }
+  let result = [...allCards];
 
   if (state.filterDateFrom) {
     const fromTs = new Date(`${state.filterDateFrom}T00:00:00`).getTime();
@@ -356,151 +281,303 @@ function filterCards(allCards) {
     if (!Number.isNaN(toTs)) result = result.filter(c => c.id <= toTs);
   }
 
+  if (state.filterTagQuery.trim()) {
+    result = result.filter(c => matchTagQuery(c, state.filterTagQuery));
+  }
+
   result = searchModule.filterCards(result);
   return result;
 }
 
+// --- 表示パネル描画（期間・タグ・タグ編集・使用中タグ一覧） ---
 async function renderDisplayPanel() {
   const allCards = await loadAllCards();
-  const scopedCards = filterByScope(allCards);
   const filtered = filterCards(allCards);
-  const trashCount = allCards.filter(c => Boolean(c.deletedAt)).length;
 
-  if (DOM.btnScopeTrash) {
-    DOM.btnScopeTrash.textContent = `ゴミ箱 (${trashCount})`;
-  }
-  document.querySelectorAll('[data-scope]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.scope === state.viewScope);
-  });
-
-  const scopeLabel = state.viewScope === 'trash' ? 'ゴミ箱' : '通常';
   if (hasActiveFilter()) {
-    const searchNote = searchModule.isActive() ? `（${searchModule.getStatusLabel()}）` : '';
-    DOM.displayStatus.textContent = `${scopeLabel}を絞り込み中：${filtered.length} / ${scopedCards.length} 件${searchNote}`;
+    DOM.displayStatus.textContent = `表示 ${filtered.length} / 全期間 ${allCards.length}`;
   } else {
-    DOM.displayStatus.textContent = `${scopeLabel}を全件表示中：${scopedCards.length} 件`;
-  }
-
-  const tagCounts = new Map();
-  let noTagCount = 0;
-  scopedCards.forEach(c => {
-    const tags = Array.isArray(c.tags) ? c.tags : [];
-    if (tags.length === 0) noTagCount++;
-    else tags.forEach(t => tagCounts.set(t, (tagCounts.get(t) || 0) + 1));
-  });
-
-  DOM.displayTagList.innerHTML = '';
-
-  const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]);
-  sortedTags.forEach(([tag, count]) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'filter-chip' + (state.filterTags.has(tag) ? ' active' : '');
-    btn.textContent = `${tag} (${count})`;
-    btn.addEventListener('click', async () => {
-      if (state.filterTags.has(tag)) state.filterTags.delete(tag);
-      else state.filterTags.add(tag);
-      await renderTimeline({ forceBottom: true });
-      await renderDisplayPanel();
-      updateHeaderWingButtons();
-    });
-    DOM.displayTagList.appendChild(btn);
-  });
-
-  if (noTagCount > 0) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'filter-chip' + (state.filterTags.has('__NO_TAG__') ? ' active' : '');
-    btn.textContent = `タグなし (${noTagCount})`;
-    btn.addEventListener('click', async () => {
-      if (state.filterTags.has('__NO_TAG__')) state.filterTags.delete('__NO_TAG__');
-      else state.filterTags.add('__NO_TAG__');
-      await renderTimeline({ forceBottom: true });
-      await renderDisplayPanel();
-      updateHeaderWingButtons();
-    });
-    DOM.displayTagList.appendChild(btn);
-  }
-
-  if (sortedTags.length === 0 && noTagCount === 0) {
-    DOM.displayTagList.innerHTML = `<span style="color:var(--muted-color); font-size:0.85rem;">${scopeLabel}にカードはありません。</span>`;
+    DOM.displayStatus.textContent = `全期間 ${allCards.length}`;
   }
 
   DOM.filterDateFrom.value = state.filterDateFrom;
   DOM.filterDateTo.value = state.filterDateTo;
+  if (DOM.filterTagInput.value !== state.filterTagQuery) {
+    DOM.filterTagInput.value = state.filterTagQuery;
+  }
 
-  document.querySelectorAll('[data-sort]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.sort === state.sortOrder);
+  document.querySelectorAll('[data-tag-edit-scope]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tagEditScope === state.tagEditScope);
   });
-  document.querySelectorAll('[data-memo-mode]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.memoMode === state.memoMode);
+
+  // タグ編集：対象範囲内の使用中タグ一覧
+  const scopeCards = state.tagEditScope === 'all' ? allCards : filtered;
+  const tagCounts = new Map();
+  scopeCards.forEach(c => {
+    (Array.isArray(c.tags) ? c.tags : []).forEach(t => {
+      tagCounts.set(t, (tagCounts.get(t) || 0) + 1);
+    });
   });
+
+  DOM.tagEditActiveList.innerHTML = '';
+  const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]);
+  if (sortedTags.length === 0) {
+    DOM.tagEditActiveList.innerHTML = '<span style="color:var(--muted-color); font-size:var(--font-small);">タグはありません。</span>';
+  } else {
+    sortedTags.forEach(([tag, count]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'filter-chip';
+      btn.textContent = `${tag} (${count})`;
+      btn.addEventListener('click', () => {
+        DOM.tagEditFrom.value = tag;
+      });
+      DOM.tagEditActiveList.appendChild(btn);
+    });
+  }
 }
 
-document.querySelectorAll('[data-scope]').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    const nextScope = btn.dataset.scope;
-    if (state.viewScope === nextScope) return;
-    state.viewScope = nextScope;
-    state.selectedIds.clear();
-    updateSelectionBar();
-    await renderTimeline({ forceBottom: true });
-    await renderDisplayPanel();
-    updateHeaderWingButtons();
-  });
-});
-
-DOM.btnDisplayReset.addEventListener('click', async () => {
-  state.viewScope = 'active';
-  state.filterTags.clear();
-  state.filterDateFrom = '';
-  state.filterDateTo = '';
-  state.selectedIds.clear();
-  updateSelectionBar();
-  searchModule.reset({ clearInputs: true });
+// 期間＆タグ入力イベント
+async function applyFilterAndRefresh() {
+  await renderTimeline({ forceBottom: true });
   await renderDisplayPanel();
-  updateHeaderWingButtons();
-});
+}
 
 DOM.filterDateFrom.addEventListener('change', async () => {
   state.filterDateFrom = DOM.filterDateFrom.value;
-  await renderTimeline({ forceBottom: true });
-  await renderDisplayPanel();
-  updateHeaderWingButtons();
+  await applyFilterAndRefresh();
 });
 
 DOM.filterDateTo.addEventListener('change', async () => {
   state.filterDateTo = DOM.filterDateTo.value;
-  await renderTimeline({ forceBottom: true });
+  await applyFilterAndRefresh();
+});
+
+DOM.btnClearDate.addEventListener('click', async () => {
+  state.filterDateFrom = '';
+  state.filterDateTo = '';
+  DOM.filterDateFrom.value = '';
+  DOM.filterDateTo.value = '';
+  await applyFilterAndRefresh();
+});
+
+let tagFilterTimer = null;
+DOM.filterTagInput.addEventListener('input', () => {
+  state.filterTagQuery = DOM.filterTagInput.value;
+  clearTimeout(tagFilterTimer);
+  tagFilterTimer = setTimeout(applyFilterAndRefresh, 200);
+});
+
+DOM.btnClearTag.addEventListener('click', async () => {
+  state.filterTagQuery = '';
+  DOM.filterTagInput.value = '';
+  await applyFilterAndRefresh();
+});
+
+document.querySelectorAll('.filter-helper-tag').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const tag = btn.dataset.helperTag;
+    const current = DOM.filterTagInput.value.trim();
+    const parts = current ? current.split(/\s+/) : [];
+    if (!parts.includes(tag)) {
+      parts.push(tag);
+      state.filterTagQuery = parts.join(' ');
+      DOM.filterTagInput.value = state.filterTagQuery;
+      await applyFilterAndRefresh();
+    }
+  });
+});
+
+DOM.btnDisplayReset.addEventListener('click', async () => {
+  state.filterDateFrom = '';
+  state.filterDateTo = '';
+  state.filterTagQuery = '';
+  DOM.filterDateFrom.value = '';
+  DOM.filterDateTo.value = '';
+  DOM.filterTagInput.value = '';
+  searchModule.reset({ clearInputs: true, silent: true });
+  await applyFilterAndRefresh();
+});
+
+// --- タグ編集イベント（対象：表示期間対象 / 全期間対象） ---
+document.querySelectorAll('[data-tag-edit-scope]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    state.tagEditScope = btn.dataset.tagEditScope;
+    await renderDisplayPanel();
+  });
+});
+
+async function getTagEditTargets() {
+  const allCards = await loadAllCards();
+  return state.tagEditScope === 'all' ? allCards : filterCards(allCards);
+}
+
+function normalizeTagToken(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  return t.startsWith('#') ? t : '#' + t;
+}
+
+DOM.btnTagReplace.addEventListener('click', async () => {
+  const fromTag = normalizeTagToken(DOM.tagEditFrom.value);
+  const toTag = normalizeTagToken(DOM.tagEditTo.value);
+  if (!fromTag) {
+    alert('対象タグを入力してください。');
+    return;
+  }
+
+  const targets = await getTagEditTargets();
+  const matched = targets.filter(c => Array.isArray(c.tags) && c.tags.includes(fromTag));
+  if (matched.length === 0) {
+    alert(`対象範囲に「${fromTag}」の付いたカードはありません。`);
+    return;
+  }
+
+  const scopeLabel = state.tagEditScope === 'all' ? '全期間' : '表示期間';
+  const actionLabel = toTag
+    ? `「${fromTag}」→「${toTag}」へ置換`
+    : `「${fromTag}」を削除`;
+
+  if (!confirm(`${scopeLabel}の ${matched.length} に対して、${actionLabel}しますか？`)) return;
+
+  const now = Date.now();
+  const updated = matched.map(c => {
+    const next = [];
+    (c.tags || []).forEach(t => {
+      if (t === fromTag) {
+        if (toTag && !next.includes(toTag)) next.push(toTag);
+      } else if (!next.includes(t)) {
+        next.push(t);
+      }
+    });
+    return { ...c, tags: next, lastupdated: now };
+  });
+
+  await bulkSaveCards(updated);
+  DOM.tagEditFrom.value = '';
+  DOM.tagEditTo.value = '';
+  await renderTimeline({ preserveScroll: true });
   await renderDisplayPanel();
-  updateHeaderWingButtons();
+  alert(`完了しました (${updated.length})。`);
 });
 
-document.querySelectorAll('[data-sort]').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    state.sortOrder = btn.dataset.sort;
-    await renderTimeline({ forceBottom: true });
-    await renderDisplayPanel();
+DOM.btnTagAdd.addEventListener('click', async () => {
+  const addTags = DOM.tagEditAdd.value
+    .trim()
+    .split(/\s+/)
+    .map(normalizeTagToken)
+    .filter(Boolean);
+
+  if (addTags.length === 0) {
+    alert('追加するタグを入力してください。');
+    return;
+  }
+
+  const targets = await getTagEditTargets();
+  if (targets.length === 0) {
+    alert('対象のカードがありません。');
+    return;
+  }
+
+  const scopeLabel = state.tagEditScope === 'all' ? '全期間' : '表示期間';
+  if (!confirm(`${scopeLabel}の ${targets.length} に ${addTags.join(' ')} を追加しますか？`)) return;
+
+  const now = Date.now();
+  const updated = [];
+  targets.forEach(c => {
+    const current = Array.isArray(c.tags) ? [...c.tags] : [];
+    let changed = false;
+    addTags.forEach(t => {
+      if (!current.includes(t)) {
+        current.push(t);
+        changed = true;
+      }
+    });
+    if (changed) {
+      updated.push({ ...c, tags: current, lastupdated: now });
+    }
   });
+
+  if (updated.length > 0) await bulkSaveCards(updated);
+  DOM.tagEditAdd.value = '';
+  await renderTimeline({ preserveScroll: true });
+  await renderDisplayPanel();
+  alert(`タグを追加しました (${updated.length})。`);
 });
 
-document.querySelectorAll('[data-memo-mode]').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    state.memoMode = btn.dataset.memoMode;
-    await renderTimeline({ preserveScroll: true });
-    await renderDisplayPanel();
-  });
+DOM.btnTagClearAll.addEventListener('click', async () => {
+  const targets = await getTagEditTargets();
+  const withTags = targets.filter(c => Array.isArray(c.tags) && c.tags.length > 0);
+  if (withTags.length === 0) {
+    alert('タグの付いた対象カードはありません。');
+    return;
+  }
+
+  const scopeLabel = state.tagEditScope === 'all' ? '全期間' : '表示期間';
+  if (!confirm(`${scopeLabel}の ${withTags.length} から、すべてのタグを消去しますか？\n※本文やメモは消えません。`)) return;
+
+  const now = Date.now();
+  const updated = withTags.map(c => ({ ...c, tags: [], lastupdated: now }));
+  await bulkSaveCards(updated);
+  await renderTimeline({ preserveScroll: true });
+  await renderDisplayPanel();
+  alert(`タグを消去しました (${updated.length})。`);
+});
+
+// --- タイムマシン（でかける：全期間表示へ自動切替してその日付へ ／ かえる：最新へ） ---
+DOM.btnTimemachineGo.addEventListener('click', async () => {
+  const val = DOM.timemachineDate.value;
+  if (!val) {
+    alert('日付を指定してください。');
+    return;
+  }
+
+  // 全期間表示へ切り替え
+  state.filterDateFrom = '';
+  state.filterDateTo = '';
+  state.filterTagQuery = '';
+  DOM.filterDateFrom.value = '';
+  DOM.filterDateTo.value = '';
+  DOM.filterTagInput.value = '';
+  searchModule.reset({ clearInputs: true, silent: true });
+
+  await renderTimeline({ preserveScroll: false });
+
+  const cards = Array.from(DOM.timeline.querySelectorAll('.card'));
+  const sortOrder = getSortOrder();
+  let targetEl = null;
+
+  if (sortOrder === 'asc') {
+    const targetTs = new Date(`${val}T00:00:00`).getTime();
+    targetEl = cards.find(el => Number(el.dataset.id) >= targetTs) || cards[cards.length - 1];
+  } else {
+    const targetTs = new Date(`${val}T23:59:59.999`).getTime();
+    targetEl = cards.find(el => Number(el.dataset.id) <= targetTs) || cards[cards.length - 1];
+  }
+
+  if (!targetEl) {
+    alert('タイムラインにカードがありません。');
+    return;
+  }
+
+  closeAllWings();
+  targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+DOM.btnTimemachineBack.addEventListener('click', () => {
+  closeAllWings();
+  const targetTop = getSortOrder() === 'desc' ? 0 : DOM.timeline.scrollHeight;
+  DOM.timeline.scrollTo({ top: targetTop, behavior: 'smooth' });
 });
 
 // --- コンソール＆タイムライン ---
 function adjustTimelinePadding({ allowAutoScroll = true } = {}) {
   const wasAtLatest = isTimelineAtLatest();
   const isConsoleOpen = DOM.consoleArea.classList.contains('open');
-  const activeElement = isConsoleOpen ? DOM.consoleArea : DOM.footerBar;
-  const pad = Math.max(activeElement.offsetHeight, 64);
+  const pad = isConsoleOpen ? Math.max(DOM.consoleArea.offsetHeight + 16, 120) : 96;
   DOM.timeline.style.paddingBottom = `${pad}px`;
 
-  if (allowAutoScroll && wasAtLatest && state.sortOrder === 'asc' && state.selectedIds.size === 0) {
+  if (allowAutoScroll && wasAtLatest && getSortOrder() === 'asc' && state.selectedIds.size === 0) {
     DOM.timeline.scrollTop = DOM.timeline.scrollHeight;
   }
 }
@@ -510,7 +587,7 @@ DOM.inputContent.addEventListener('input', () => adjustTimelinePadding({ allowAu
 
 function openInputConsole() {
   const wasAtLatest = isTimelineAtLatest();
-  DOM.footerBar.style.display = 'none';
+  DOM.btnFab.style.display = 'none';
   DOM.consoleArea.classList.add('open');
   adjustTimelinePadding({ allowAutoScroll: wasAtLatest });
   setTimeout(() => DOM.inputContent.focus(), 100);
@@ -520,7 +597,7 @@ function openInputConsole() {
 function closeInputConsole() {
   DOM.consoleArea.classList.remove('open');
   if (state.selectedIds.size === 0) {
-    DOM.footerBar.style.display = 'block';
+    DOM.btnFab.style.display = 'flex';
   }
   adjustTimelinePadding({ allowAutoScroll: false });
   DOM.inputContent.blur();
@@ -543,6 +620,10 @@ function handleCheckboxChange(cardId, isChecked) {
   updateSelectionBar();
 }
 
+function updateSelectionBar() {
+  updateSelectionBarUI(state.selectedIds.size, DOM);
+}
+
 async function renderTimeline({ forceBottom = false, preserveScroll = false } = {}) {
   const prevScroll = DOM.timeline.scrollTop;
   const wasAtLatest = isTimelineAtLatest();
@@ -551,13 +632,18 @@ async function renderTimeline({ forceBottom = false, preserveScroll = false } = 
   DOM.timeline.innerHTML = '';
 
   const displayCards = filterCards(allCards);
-  displayCards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
+  const sortOrder = getSortOrder();
+  displayCards.sort((a, b) => (sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
   state.lastRenderedIds = displayCards.map(c => c.id);
 
-  const showMemoFull = state.memoMode === 'full';
+  const displayPrefs = settingsModule.getDisplayPrefs();
   displayCards.forEach(card => {
-    const isSelected = state.selectedIds.has(card.id);
-    const cardElement = createTankaCard(card, isSelected, handleCheckboxChange, openEditPanel, showMemoFull);
+    const cardElement = createTankaCard(card, {
+      isSelected: state.selectedIds.has(card.id),
+      displayPrefs,
+      onCheckChange: handleCheckboxChange,
+      onOpenEdit: openEditPanel
+    });
     DOM.timeline.appendChild(cardElement);
   });
 
@@ -566,25 +652,21 @@ async function renderTimeline({ forceBottom = false, preserveScroll = false } = 
   if (preserveScroll) {
     DOM.timeline.scrollTop = prevScroll;
   } else if (forceBottom || wasAtLatest) {
-    DOM.timeline.scrollTop = state.sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+    DOM.timeline.scrollTop = sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
   } else {
     DOM.timeline.scrollTop = prevScroll;
   }
 }
 
-function updateSelectionBar() {
-  updateSelectionBarUI(state.selectedIds.size, DOM);
-}
-
 async function getSelectedCardsOrdered() {
   const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
-  cards.sort((a, b) => (state.sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
+  const sortOrder = getSortOrder();
+  cards.sort((a, b) => (sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
   return cards;
 }
 
 DOM.btnSelectAll.addEventListener('click', () => {
-  const cardEls = DOM.timeline.querySelectorAll('.card');
-  cardEls.forEach(el => {
+  DOM.timeline.querySelectorAll('.card').forEach(el => {
     const id = Number(el.dataset.id);
     if (!Number.isNaN(id)) {
       state.selectedIds.add(id);
@@ -605,73 +687,49 @@ DOM.btnDockReader.addEventListener('click', async () => {
   if (state.selectedIds.size === 0) return;
   const cards = await getSelectedCardsOrdered();
   if (cards.length === 0) return;
-  openReader(`鑑賞モード（${cards.length}首）`, cards.map(c => c.content).join('\n\n'));
+  openReader(`閲覧 (${cards.length})`, cards.map(c => c.content).join('\n\n'));
+});
+
+DOM.btnToDesk.addEventListener('click', async () => {
+  if (state.selectedIds.size === 0) return;
+  const cards = await getSelectedCardsOrdered();
+  if (cards.length === 0) return;
+  deskModule.open(cards);
 });
 
 DOM.btnSend.addEventListener('click', async () => {
   const content = DOM.inputContent.value.trim();
   if (!content) return;
 
-  const tags = DOM.inputTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+  const tags = DOM.inputTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
+
   const now = Date.now();
-  await saveCard({ id: now, content, memo: '', tags, lastupdated: now, deletedAt: null });
+  await saveCard({ id: now, content, memo: '', tags, lastupdated: now });
 
   DOM.inputContent.value = '';
   DOM.inputTags.value = '';
   adjustTimelinePadding({ allowAutoScroll: false });
 
   const searchResult = searchModule.handleCardCreated(now);
-
-  if (state.viewScope === 'trash') {
-    state.viewScope = 'active';
-  }
-  updateHeaderWingButtons();
-
   await renderTimeline({ forceBottom: searchResult !== 'added_suiko' });
 });
 
-// --- 鑑賞モード（広げて読む） ---
-function openReader(title, text) {
-  DOM.readerTitle.textContent = title || '鑑賞モード';
-  DOM.readerContent.textContent = text || '';
-  DOM.panelReader.scrollTop = 0;
-  DOM.panelReader.classList.add('active');
-}
-
-DOM.btnCloseReader.addEventListener('click', () => {
-  DOM.panelReader.classList.remove('active');
-});
-
-DOM.btnReaderCopy.addEventListener('click', async () => {
-  const text = DOM.readerContent.textContent;
-  if (!text) return;
-  try {
-    await navigator.clipboard.writeText(text);
-    alert('コピーしました。');
-  } catch (_) {
-    alert('コピーに失敗しました。');
-  }
-});
-
-// --- 詳細・編集パネル ---
-function configureEditTrashButtons(isTrashMode) {
-  DOM.editRestoreRow.style.display = isTrashMode ? 'flex' : 'none';
-  DOM.btnDeleteEdit.textContent = isTrashMode ? '完全削除' : 'ゴミ箱へ';
-}
-
+// --- カード編集・一括編集パネル ---
 function openEditPanel(card) {
   state.editingCardId = card.id;
   state.batchOriginalTags.clear();
-  DOM.editPanelTitle.textContent = '詳細・編集';
+  DOM.editPanelTitle.textContent = 'カード編集';
   DOM.editTimestampGroup.style.display = 'flex';
-  const deletedNote = card.deletedAt ? ` ／ ゴミ箱移動: ${formatDateWithWeekday(card.deletedAt)}` : '';
-  DOM.editTimestamp.textContent = `${formatDateWithWeekday(card.id)}${deletedNote}`;
+  DOM.editTimestamp.textContent = formatDateWithWeekday(card.id);
   DOM.editContentView.innerText = card.content;
   DOM.editMemo.disabled = false;
   DOM.editMemo.value = card.memo || '';
   DOM.editTags.value = Array.isArray(card.tags) ? card.tags.join(' ') : '';
   DOM.editTagsHint.style.display = 'none';
-  configureEditTrashButtons(Boolean(card.deletedAt));
   DOM.panelEdit.classList.add('active');
 }
 
@@ -684,9 +742,9 @@ DOM.btnOpenReaderEdit.addEventListener('click', async () => {
   if (state.editingCardId === 'batch') {
     const cards = await getSelectedCardsOrdered();
     if (cards.length === 0) return;
-    openReader(`鑑賞モード（${cards.length}首）`, cards.map(c => c.content).join('\n\n'));
+    openReader(`閲覧 (${cards.length})`, cards.map(c => c.content).join('\n\n'));
   } else {
-    openReader('鑑賞モード', DOM.editContentView.innerText);
+    openReader('閲覧', DOM.editContentView.innerText);
   }
 });
 
@@ -707,7 +765,7 @@ DOM.btnBatchEdit.addEventListener('click', async () => {
   if (cards.length === 0) return;
 
   state.editingCardId = 'batch';
-  DOM.editPanelTitle.textContent = `一括編集（${cards.length}件）`;
+  DOM.editPanelTitle.textContent = `一括編集 (${cards.length})`;
   DOM.editTimestampGroup.style.display = 'none';
   DOM.editTimestamp.textContent = '';
   DOM.editContentView.innerText = cards.map(c => c.content).join('\n---\n');
@@ -726,10 +784,8 @@ DOM.btnBatchEdit.addEventListener('click', async () => {
 
   state.batchOriginalTags = new Set(unionTags);
   DOM.editTags.value = Array.from(unionTags).join(' ');
-  DOM.editTagsHint.textContent = '※一括編集：消したタグだけ削除され、足したタグだけ追加されます（各カード固有のタグは保持）。';
+  DOM.editTagsHint.textContent = '消したタグだけ削除され、足したタグだけ追加されます（各カード固有のタグは保持）。';
   DOM.editTagsHint.style.display = 'block';
-
-  configureEditTrashButtons(state.viewScope === 'trash');
   DOM.panelEdit.classList.add('active');
 });
 
@@ -779,38 +835,6 @@ DOM.btnSaveEdit.addEventListener('click', async () => {
   DOM.editMemo.disabled = false;
 });
 
-DOM.btnRestoreEdit.addEventListener('click', async () => {
-  const now = Date.now();
-
-  if (state.editingCardId === 'batch') {
-    const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
-      const card = await getCard(id);
-      if (!card) return null;
-      card.deletedAt = null;
-      card.lastupdated = now;
-      return card;
-    }))).filter(Boolean);
-
-    await bulkSaveCards(updatedCards);
-    state.selectedIds.clear();
-    updateSelectionBar();
-  } else {
-    const card = await getCard(state.editingCardId);
-    if (card) {
-      card.deletedAt = null;
-      card.lastupdated = now;
-      await saveCard(card);
-      state.selectedIds.delete(card.id);
-      updateSelectionBar();
-    }
-  }
-
-  await renderTimeline({ preserveScroll: true });
-  await dataManagerModule.checkMonthlyTrashReminder();
-  DOM.panelEdit.classList.remove('active');
-  DOM.editMemo.disabled = false;
-});
-
 DOM.btnCopyEdit.addEventListener('click', async () => {
   let contentToCopy = '';
   if (state.editingCardId === 'batch') {
@@ -828,9 +852,14 @@ DOM.btnCopyEdit.addEventListener('click', async () => {
   }
 });
 
+// 原本をタイムラインに残したまま書庫へコピー保管
 DOM.btnShelfEdit.addEventListener('click', async () => {
   const now = Date.now();
-  const inputTags = DOM.editTags.value.trim().split(/\s+/).filter(Boolean).map(t => t.startsWith('#') ? t : '#' + t);
+  const inputTags = DOM.editTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
 
   if (state.editingCardId === 'batch') {
     const cards = await getSelectedCardsOrdered();
@@ -863,63 +892,37 @@ DOM.btnShelfEdit.addEventListener('click', async () => {
     await saveShelf({ id: now, title, memo: currentMemo, tags: inputTags, items: [snapshot], order: now, lastupdated: now });
   }
 
-  await shelfModule.updateBadge();
-  alert('書庫に収めました。');
+  alert('書庫へ保管しました。');
 });
 
+// ゴミ箱へ移動（ローカルストレージ隔離箱へ退避）
 DOM.btnDeleteEdit.addEventListener('click', async () => {
-  const now = Date.now();
-  const isTrashMode = state.editingCardId === 'batch'
-    ? state.viewScope === 'trash'
-    : Boolean((await getCard(state.editingCardId))?.deletedAt);
-
   if (state.editingCardId === 'batch') {
-    if (isTrashMode) {
-      if (!confirm(`選択された ${state.selectedIds.size} 件を完全に削除しますか？この操作は取り消せません。`)) return;
-      await Promise.all(Array.from(state.selectedIds).map(id => deleteCard(id)));
-    } else {
-      const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
-        const card = await getCard(id);
-        if (!card) return null;
-        card.deletedAt = now;
-        card.lastupdated = now;
-        return card;
-      }))).filter(Boolean);
-      await bulkSaveCards(updatedCards);
-    }
+    const cards = await getSelectedCardsOrdered();
+    if (cards.length === 0) return;
+    if (!confirm(`選択中の ${cards.length} をゴミ箱へ移しますか？\n※書庫のデータ管理→ゴミ箱からいつでも戻せます。`)) return;
+    await dataManagerModule.moveCardsToTrash(cards);
     state.selectedIds.clear();
   } else {
-    if (isTrashMode) {
-      if (!confirm('このカードを完全に削除しますか？この操作は取り消せません。')) return;
-      await deleteCard(state.editingCardId);
-    } else {
-      const card = await getCard(state.editingCardId);
-      if (card) {
-        card.deletedAt = now;
-        card.lastupdated = now;
-        await saveCard(card);
-      }
-    }
-    state.selectedIds.delete(state.editingCardId);
+    const card = await getCard(state.editingCardId);
+    if (!card) return;
+    if (!confirm('このカードをゴミ箱へ移しますか？\n※書庫のデータ管理→ゴミ箱からいつでも戻せます。')) return;
+    await dataManagerModule.moveCardsToTrash([card]);
+    state.selectedIds.delete(card.id);
   }
 
   updateSelectionBar();
   await renderTimeline({ preserveScroll: true });
-  await dataManagerModule.checkMonthlyTrashReminder();
   DOM.panelEdit.classList.remove('active');
   DOM.editMemo.disabled = false;
-});
-
-DOM.btnToDesk.addEventListener('click', () => {
-  if (state.selectedIds.size === 0) return;
-  const ids = Array.from(state.selectedIds).join(',');
-  window.location.href = `rensaku.html?ids=${ids}`;
 });
 
 // --- 起動処理 ---
 window.addEventListener('DOMContentLoaded', async () => {
   settingsModule.load();
   await initDB();
+  await dataManagerModule.migrateLegacyTrash();
+
   adjustTimelinePadding({ allowAutoScroll: false });
   await renderTimeline({ forceBottom: true });
 
@@ -929,13 +932,5 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (!Number.isNaN(pos)) DOM.timeline.scrollTop = pos;
   }
 
-  await shelfModule.updateBadge();
-  updateHeaderWingButtons();
-  await dataManagerModule.checkMonthlyTrashReminder();
-
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('open') === 'shelf') {
-    await openWing('shelf');
-    history.replaceState(null, '', 'saikiyo2.html');
-  }
+  updateHeaderButtons();
 });
