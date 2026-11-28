@@ -69,7 +69,7 @@ export function deleteCard(id) {
   });
 }
 
-// --- リスト棚（完全スナップショット）操作 ---
+// --- 書庫（完全スナップショット）操作 ---
 export function saveShelf(shelf) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(SHELF_STORE_NAME, 'readwrite');
