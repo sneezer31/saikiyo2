@@ -1,4 +1,4 @@
-/** さいきよ2 - データ管理モジュール（差分取り込み・古いID絶対保護・初代全ステイタスタグ化・重複整理・ローカル隔離ゴミ箱） */
+/** さいきよ2 - データ管理モジュール（差分取り込み・古いID絶対保護・初代全ステータスタグ化・重複整理・ローカル隔離ゴミ箱） */
 
 import {
   saveCard,
@@ -94,7 +94,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
   async function updateStats() {
     const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
     if (DOM.stats) {
-      DOM.stats.textContent = `タイムライン ${cards.length} ／ 書庫 ${shelves.length}`;
+      DOM.stats.textContent = `タイムライン ${cards.length}枚 ／ 書庫 ${shelves.length}`;
     }
     renderTrashList();
   }
@@ -174,7 +174,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       const fileName = `saikiyo2_trash_${makeTimestampStr()}.txt`;
       downloadTextFile(JSON.stringify(payload, null, 2), fileName);
 
-      if (!confirm(`ゴミ箱のバックアップ（${fileName}）を保存しました。\n\nこのままゴミ箱を空にしますか？（${trash.length}・取り消し不可）`)) {
+      if (!confirm(`ゴミ箱のバックアップ（${fileName}）を保存しました。\n\nこのままゴミ箱を空にしますか？（${trash.length}枚・取り消し不可）`)) {
         return;
       }
 
@@ -184,7 +184,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
   }
 
-  // 初代ステイタスを含め、付いているステイタスは間引かずすべて #タグ 化
+  // 初代ステータスを含め、付いているステータスは間引かずすべて #タグ 化
   function normalizeTags(rawTags, status, publishStatus) {
     const tagSet = new Set();
     const addTag = (t) => {
@@ -404,7 +404,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
 
     if (cardsToAdd.length === 0 && shelvesToAdd.length === 0 && trashedToIsolate.length === 0) {
-      alert(`新しく追加するデータはありませんでした（既存保護スキップ：カード ${skippedCards} ／ 書庫 ${skippedShelves}）。`);
+      alert(`新しく追加するデータはありませんでした（既存保護スキップ：カード ${skippedCards}枚 ／ 書庫 ${skippedShelves}）。`);
       return;
     }
 
@@ -422,9 +422,9 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     await onDataChanged();
     await updateStats();
 
-    let msg = `取り込み完了\n・カード追加：${cardsToAdd.length}\n・書庫追加：${shelvesToAdd.length}`;
+    let msg = `取り込み完了\n・カード追加：${cardsToAdd.length}枚\n・書庫追加：${shelvesToAdd.length}`;
     if (skippedCards > 0 || skippedShelves > 0) {
-      msg += `\n・既存ID保護スキップ：カード ${skippedCards} ／ 書庫 ${skippedShelves}`;
+      msg += `\n・既存ID保護スキップ：カード ${skippedCards}枚 ／ 書庫 ${skippedShelves}`;
     }
     alert(msg);
   }
@@ -487,7 +487,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     });
 
     if (newCards.length === 0) {
-      alert(`すべて既存の本文と一致したためスキップしました (${skipped})。`);
+      alert(`すべて既存の本文と一致したためスキップしました (${skipped}枚)。`);
       return;
     }
 
@@ -497,8 +497,8 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
 
     await onDataChanged();
     await updateStats();
-    const skipNote = skipped > 0 ? `（既存一致スキップ ${skipped}）` : '';
-    alert(`テキストを取り込みました：追加 ${newCards.length}${skipNote}`);
+    const skipNote = skipped > 0 ? `（既存一致スキップ ${skipped}枚）` : '';
+    alert(`テキストを取り込みました：追加 ${newCards.length}枚${skipNote}`);
   });
 
   // --- 重複整理（古いIDを残し新しい方をローカルゴミ箱へ） ---
@@ -526,7 +526,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
       return;
     }
 
-    if (!confirm(`完全一致する重複が ${duplicates.length} 見つかりました。\n古いIDを残し、新しい方だけをゴミ箱へ移しますか？`)) {
+    if (!confirm(`完全一致する重複が ${duplicates.length}枚 見つかりました。\n古いIDを残し、新しい方だけをゴミ箱へ移しますか？`)) {
       return;
     }
 
@@ -556,7 +556,7 @@ export function initDataManagerModule({ onDataChanged, onCardsDeleted }) {
     await onCardsDeleted(new Set(duplicates.map(c => c.id)));
     await onDataChanged();
     await updateStats();
-    alert(`重複を整理しました (${duplicates.length})。`);
+    alert(`重複を整理しました (${duplicates.length}枚)。`);
   });
 
   return {
