@@ -1041,4 +1041,274 @@ async function renderTimeline({ forceBottom = false, preserveScroll = false } = 
       isSelected: state.selectedIds.has(card.id),
       displayPrefs,
       onCheckChange: handleCheckboxChange,
-      onOpen
+      onOpenEdit: openEditPanel
+    });
+    DOM.timeline.appendChild(cardElement);
+  });
+
+  searchModule.updateUI(displayCards.length);
+
+  if (preserveScroll) {
+    DOM.timeline.scrollTop = prevScroll;
+  } else if (forceBottom || wasAtLatest) {
+    DOM.timeline.scrollTop = sortOrder === 'desc' ? 0 : DOM.timeline.scrollHeight;
+  } else {
+    DOM.timeline.scrollTop = prevScroll;
+  }
+}
+
+async function getSelectedCardsOrdered() {
+  const cards = (await Promise.all(Array.from(state.selectedIds).map(id => getCard(id)))).filter(Boolean);
+  const sortOrder = getSortOrder();
+  cards.sort((a, b) => (sortOrder === 'desc' ? b.id - a.id : a.id - b.id));
+  return cards;
+}
+
+DOM.btnSelectAll.addEventListener('click', () => {
+  DOM.timeline.querySelectorAll('.card').forEach(el => {
+    const id = Number(el.dataset.id);
+    if (!Number.isNaN(id)) {
+      state.selectedIds.add(id);
+      const chk = el.querySelector('.card-check');
+      if (chk) chk.checked = true;
+    }
+  });
+  updateSelectionBar();
+});
+
+DOM.btnCancelSelection.addEventListener('click', () => {
+  state.selectedIds.clear();
+  DOM.timeline.querySelectorAll('.card-check').forEach(chk => { chk.checked = false; });
+  updateSelectionBar();
+});
+
+DOM.btnToDesk.addEventListener('click', async () => {
+  if (state.selectedIds.size === 0) return;
+  const cards = await getSelectedCardsOrdered();
+  if (cards.length === 0) return;
+  deskModule.open(cards);
+  updateHeaderButtons();
+});
+
+DOM.btnSend.addEventListener('click', async () => {
+  const content = DOM.inputContent.value.trim();
+  if (!content) return;
+
+  const tags = DOM.inputTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
+
+  const now = Date.now();
+  await saveCard({ id: now, content, memo: '', tags, lastupdated: now });
+
+  DOM.inputContent.value = '';
+  DOM.inputTags.value = '';
+  adjustTimelinePadding({ allowAutoScroll: false });
+
+  const searchResult = searchModule.handleCardCreated(now);
+  await renderTimeline({ forceBottom: searchResult !== 'added_suiko' });
+});
+
+// --- カード編集・一括編集パネル ---
+function openEditPanel(card) {
+  state.editingCardId = card.id;
+  state.batchOriginalTags.clear();
+  DOM.editPanelTitle.textContent = 'カード編集';
+  DOM.editTimestampGroup.style.display = 'flex';
+  DOM.editTimestamp.textContent = formatDateWithWeekday(card.id);
+  DOM.editContentView.innerText = card.content;
+  DOM.editMemo.disabled = false;
+  DOM.editMemo.value = card.memo || '';
+  DOM.editTags.value = Array.isArray(card.tags) ? card.tags.join(' ') : '';
+  DOM.editTagsHint.style.display = 'none';
+  renderEditHelperTags();
+  DOM.panelEdit.classList.add('active');
+  updateHeaderButtons();
+}
+
+DOM.editTags.addEventListener('input', syncEditHelperTagStates);
+
+DOM.btnBatchEdit.addEventListener('click', async () => {
+  if (state.selectedIds.size === 0) return;
+  const cards = await getSelectedCardsOrdered();
+  if (cards.length === 0) return;
+
+  state.editingCardId = 'batch';
+  DOM.editPanelTitle.textContent = `一括編集 (${cards.length}枚)`;
+  DOM.editTimestampGroup.style.display = 'none';
+  DOM.editTimestamp.textContent = '';
+  DOM.editContentView.innerText = cards.map(c => c.content).join('\n---\n');
+  DOM.editMemo.value = '※複数選択時はメモを編集できません';
+  DOM.editMemo.disabled = true;
+
+  const unionTags = new Set();
+  cards.forEach(c => {
+    if (Array.isArray(c.tags)) {
+      c.tags.forEach(t => {
+        const cleaned = String(t).trim();
+        if (cleaned) unionTags.add(cleaned.startsWith('#') ? cleaned : '#' + cleaned);
+      });
+    }
+  });
+
+  state.batchOriginalTags = new Set(unionTags);
+  DOM.editTags.value = Array.from(unionTags).join(' ');
+  DOM.editTagsHint.textContent = '消したタグだけ削除され、足したタグだけ追加されます（各カード固有のタグは保持）。';
+  DOM.editTagsHint.style.display = 'block';
+  renderEditHelperTags();
+  DOM.panelEdit.classList.add('active');
+  updateHeaderButtons();
+});
+
+DOM.btnSaveEdit.addEventListener('click', async () => {
+  const newTagsInput = DOM.editTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
+  const now = Date.now();
+
+  if (state.editingCardId === 'batch') {
+    const newTagSet = new Set(newTagsInput);
+    const origTagSet = state.batchOriginalTags;
+    const tagsToRemove = new Set([...origTagSet].filter(t => !newTagSet.has(t)));
+    const tagsToAdd = new Set([...newTagSet].filter(t => !origTagSet.has(t)));
+
+    const updatedCards = (await Promise.all(Array.from(state.selectedIds).map(async (id) => {
+      const card = await getCard(id);
+      if (!card) return null;
+      const currentTags = Array.isArray(card.tags) ? card.tags : [];
+      const nextTags = currentTags.filter(t => !tagsToRemove.has(t));
+      tagsToAdd.forEach(t => {
+        if (!nextTags.includes(t)) nextTags.push(t);
+      });
+      card.tags = nextTags;
+      card.lastupdated = now;
+      return card;
+    }))).filter(Boolean);
+
+    await bulkSaveCards(updatedCards);
+    state.selectedIds.clear();
+    state.batchOriginalTags.clear();
+    updateSelectionBar();
+  } else {
+    const card = await getCard(state.editingCardId);
+    if (card) {
+      card.memo = DOM.editMemo.value;
+      card.tags = Array.from(new Set(newTagsInput));
+      card.lastupdated = now;
+      await saveCard(card);
+    }
+  }
+
+  await renderTimeline({ preserveScroll: true });
+  closeFullPanels();
+  updateHeaderButtons();
+});
+
+DOM.btnCopyEdit.addEventListener('click', async () => {
+  let contentToCopy = '';
+  if (state.editingCardId === 'batch') {
+    const cards = await getSelectedCardsOrdered();
+    contentToCopy = cards.map(c => c.content).join('\n\n');
+  } else {
+    contentToCopy = DOM.editContentView.innerText;
+  }
+
+  try {
+    await navigator.clipboard.writeText(contentToCopy);
+    alert('コピーしました。');
+  } catch (_) {
+    alert('コピーに失敗しました。');
+  }
+});
+
+// 原本をタイムラインに残したまま書庫へコピー保管
+DOM.btnShelfEdit.addEventListener('click', async () => {
+  const now = Date.now();
+  const inputTags = DOM.editTags.value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => (t.startsWith('#') ? t : '#' + t));
+
+  if (state.editingCardId === 'batch') {
+    const cards = await getSelectedCardsOrdered();
+    if (cards.length === 0) return;
+
+    const title = cards[0].content.replace(/\s+/g, '').slice(0, 5) || '無題';
+    const items = cards.map(c => ({
+      id: c.id,
+      content: c.content,
+      memo: c.memo || '',
+      tags: Array.isArray(c.tags) ? [...c.tags] : [],
+      lastupdated: c.lastupdated || c.id
+    }));
+
+    await saveShelf({ id: now, title, memo: '', tags: inputTags, items, order: now, lastupdated: now });
+  } else {
+    const card = await getCard(state.editingCardId);
+    if (!card) return;
+
+    const title = card.content.replace(/\s+/g, '').slice(0, 5) || '無題';
+    const currentMemo = DOM.editMemo.value;
+    const snapshot = {
+      id: card.id,
+      content: card.content,
+      memo: currentMemo,
+      tags: inputTags,
+      lastupdated: card.lastupdated || card.id
+    };
+
+    await saveShelf({ id: now, title, memo: currentMemo, tags: inputTags, items: [snapshot], order: now, lastupdated: now });
+  }
+
+  alert('書庫へ保管しました。');
+});
+
+// ゴミ箱へ移動（ローカルストレージ隔離箱へ退避）
+DOM.btnDeleteEdit.addEventListener('click', async () => {
+  if (state.editingCardId === 'batch') {
+    const cards = await getSelectedCardsOrdered();
+    if (cards.length === 0) return;
+    if (!confirm(`選択中の ${cards.length}枚 をゴミ箱へ移しますか？\n※書庫のデータ管理→ゴミ箱からいつでも戻せます。`)) return;
+    await dataManagerModule.moveCardsToTrash(cards);
+    state.selectedIds.clear();
+  } else {
+    const card = await getCard(state.editingCardId);
+    if (!card) return;
+    if (!confirm('このカードをゴミ箱へ移しますか？\n※書庫のデータ管理→ゴミ箱からいつでも戻せます。')) return;
+    await dataManagerModule.moveCardsToTrash([card]);
+    state.selectedIds.delete(card.id);
+  }
+
+  updateSelectionBar();
+  await renderTimeline({ preserveScroll: true });
+  closeFullPanels();
+  updateHeaderButtons();
+});
+
+// --- 起動処理 ---
+window.addEventListener('DOMContentLoaded', async () => {
+  settingsModule.load();
+  loadDisplayFilterState();
+  loadHelperTags();
+  renderAllHelperTagUIs();
+  await initDB();
+  await dataManagerModule.migrateLegacyTrash();
+
+  adjustTimelinePadding({ allowAutoScroll: false });
+  await renderTimeline({ forceBottom: true });
+
+  if (!hasActiveFilter()) {
+    const savedScroll = localStorage.getItem(SCROLL_POS_KEY);
+    if (savedScroll !== null) {
+      const pos = parseInt(savedScroll, 10);
+      if (!Number.isNaN(pos)) DOM.timeline.scrollTop = pos;
+    }
+  }
+
+  updateHeaderButtons();
+});
