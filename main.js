@@ -1307,7 +1307,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (savedScroll !== null) {
       const pos = parseInt(savedScroll, 10);
       if (!Number.isNaN(pos)) DOM.timeline.scrollTop = pos;
-    }
+}
   }
 
   updateHeaderButtons();
