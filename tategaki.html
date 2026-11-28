@@ -3,1379 +3,484 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>さいきよ2</title>
+<title>さいきよ 画像化</title>
 <style>
   :root {
-    --bg-color: #FDFBF6;
-    --text-color: #1A1A1A;
-    --btn-bg: #EAE6DF;
-    --muted-color: #555555;
+    --bg-color: #FFFFFF; --text-color: #111111; --font-family: sans-serif;
   }
-
   body {
-    margin: 0; padding: 20px;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100dvh;
-    box-sizing: border-box;
+    margin: 0; padding: 20px; background-color: var(--bg-color);
+    color: var(--text-color); font-family: var(--font-family);
+    display: flex; flex-direction: column; align-items: center;
   }
-
-  .portal-container {
-    width: 100%;
-    max-width: 400px;
+  .container {
+    width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 15px;
   }
-
-  h1 {
-    text-align: center;
-    font-size: 1.4rem;
-    margin: 0 0 32px 0;
-    letter-spacing: 2px;
-    border-bottom: 2px solid var(--text-color);
-    padding-bottom: 10px;
+  .top-bar {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
   }
-
-  .menu-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+  .top-bar h2 {
+    margin: 0;
   }
-
-  .menu-item {
-    display: block;
-    text-decoration: none;
-    background: var(--btn-bg);
-    color: var(--text-color);
-    padding: 18px 20px;
-    text-align: center;
-    border: 1px solid var(--text-color);
-    box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.12);
-    transition: transform 0.1s, box-shadow 0.1s;
+  .back-link {
+    font-size: 0.95rem; font-weight: bold; color: var(--text-color); text-decoration: underline;
   }
-
-  .menu-item:active {
-    transform: translate(2px, 2px);
-    box-shadow: none;
+  .primary-controls {
+    display: flex; flex-direction: column; gap: 10px; padding: 15px;
+    background: #f8f8f8; border: 1px solid var(--text-color); border-radius: 8px;
   }
-
-  .menu-title {
-    display: block;
-    font-size: 1.2rem;
-    font-weight: bold;
-    margin-bottom: 6px;
+  .radio-group { display: flex; gap: 15px; font-weight: bold; flex-wrap: wrap; }
+  .radio-group label { cursor: pointer; }
+  textarea {
+    width: 100%; height: 120px; padding: 12px; font-size: 16px; font-family: inherit;
+    box-sizing: border-box; border: 1px solid var(--text-color);
+    background: var(--bg-color); color: var(--text-color); resize: vertical;
   }
-
-  .menu-desc {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--muted-color);
-    line-height: 1.4;
+  button {
+    padding: 14px; font-size: 1.1rem; font-weight: bold;
+    background: var(--bg-color); color: var(--text-color);
+    border: 1px solid var(--text-color); cursor: pointer; width: 100%; border-radius: 4px;
   }
+  button:hover:not(:disabled) { opacity: 0.7; }
+  button:disabled { opacity: 0.3; cursor: not-allowed; }
+  #btn-preview, #generate-btn { border: 2px solid var(--text-color); }
+  .action-btns { display: flex; gap: 10px; margin-top: 5px; }
+  #btn-preview { flex: 2; }
+  #btn-undo, #btn-redo { flex: 1; font-size: 1rem; }
+  #preview-img {
+    max-width: 100%; height: auto; border: 1px solid var(--text-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); background: transparent; display: block;
+  }
+  #canvas { display: none; }
+  .settings-panel {
+    display: flex; flex-direction: column; gap: 15px; padding: 15px;
+    border: 1px dashed var(--text-color); border-radius: 8px;
+  }
+  .preset-btns { display: flex; gap: 10px; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .control-group { display: flex; flex-direction: column; gap: 5px; font-size: 0.9rem; }
+  @media (max-width: 600px) {
+    .controls { grid-template-columns: 1fr; }
+    .action-btns button { padding: 12px 5px; font-size: 0.9rem; }
+    #btn-preview { font-size: 1.05rem; white-space: nowrap; }
+  }
+  select, input[type="file"], input[type="number"], input[type="range"] {
+    width: 100%; padding: 8px; font-size: 1rem; font-family: inherit;
+    background: var(--bg-color); color: var(--text-color);
+    border: 1px solid var(--text-color); cursor: pointer; border-radius: 4px; box-sizing: border-box;
+  }
+  input[type="range"] { padding: 0; border: none; height: 38px; }
+  input[type="color"] {
+    width: 100%; height: 44px; padding: 0; border: 1px solid var(--text-color);
+    border-radius: 4px; cursor: pointer; background-color: var(--bg-color);
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+  #generate-btn { margin-top: 10px; padding: 18px; font-size: 1.2rem; }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Zen+Kurenaido&family=Zen+Old+Mincho:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<div class="portal-container">
-  <h1>さいきよ2</h1>
-
-  <div class="menu-list">
-    <a href="saikiyo2.html" class="menu-item">
-      <span class="menu-title">さいきよ2</span>
-      <span class="menu-desc">テキストの記録・期間とタグ整理・書庫</span>
-    </a>
-
-    <a href="rensaku-solo.html" class="menu-item">
-      <span class="menu-title">れんさく（単体版）</span>
-      <span class="menu-desc">テキスト貼り付けによる順番の並べ替え</span>
-    </a>
-
-    <a href="tategaki.html" class="menu-item">
-      <span class="menu-title">たてがき</span>
-      <span class="menu-desc">テキストの縦書き画像を作成・保存</span>
-    </a>
+<div class="container">
+  <div class="top-bar">
+    <h2>さいきよ 画像化</h2>
+    <a href="index.html" class="back-link">メニューへ</a>
   </div>
+  <div class="primary-controls">
+    <div class="radio-group">
+      <span>文字方向：</span>
+      <label><input type="radio" name="direction" value="vertical" checked> 縦書き</label>
+      <label><input type="radio" name="direction" value="horizontal"> 横書き</label>
+    </div>
+    <div class="radio-group">
+      <span>キャンバス：</span>
+      <label><input type="radio" name="ratio" value="portrait" checked> 縦長 (4:5)</label>
+      <label><input type="radio" name="ratio" value="square"> 正方形 (1:1)</label>
+      <label><input type="radio" name="ratio" value="landscape"> 横長 (16:9)</label>
+      <label><input type="radio" name="ratio" value="circle"> 円形 (透過)</label>
+    </div>
+  </div>
+  <textarea id="text-input" placeholder="ここにテキストを入力してください"></textarea>
+  <div class="action-btns">
+    <button type="button" id="btn-undo" disabled>← 戻る</button>
+    <button type="button" id="btn-preview">プレビュー更新</button>
+    <button type="button" id="btn-redo" disabled>進む →</button>
+  </div>
+  <img id="preview-img" alt="プレビュー画像">
+  <canvas id="canvas"></canvas>
+  <div class="settings-panel">
+    <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: -5px;">デザイン設定</div>
+    <div class="preset-btns">
+      <button type="button" data-preset="monochrome">白黒</button>
+      <button type="button" data-preset="silver">銀鼠</button>
+    </div>
+    <div class="controls">
+      <div class="control-group">
+        <label>書体</label>
+        <select id="font-select">
+          <option value="'Zen Old Mincho', serif">オールド明朝 (Zen Old)</option>
+          <option value="'Zen Kaku Gothic New', sans-serif">ゴシック体 (Zen Kaku)</option>
+          <option value="'Zen Kurenaido', sans-serif">手書き風 (Zen Kurenaido)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>文字サイズ (px)</label>
+        <input type="number" id="fontsize-input" value="36" step="1" min="10">
+      </div>
+      <div class="control-group">
+        <label>行間 (倍率)</label>
+        <input type="number" id="spacing-input" value="1.8" step="0.1" min="1.0">
+      </div>
+      <div class="control-group">
+        <label>文字の縁取り</label>
+        <select id="stroke-select">
+          <option value="none">なし</option>
+          <option value="white">白縁</option>
+          <option value="gray">灰色縁</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>文字の背景帯</label>
+        <select id="bg-ribbon-select">
+          <option value="none">なし</option>
+          <option value="white">白帯</option>
+          <option value="black">黒帯</option>
+        </select>
+      </div>
+      <div class="control-group" id="ribbon-opacity-group">
+        <label>帯の濃さ</label>
+        <input type="range" id="ribbon-opacity-input" min="0" max="100" value="55" step="1">
+      </div>
+      <div class="control-group">
+        <label>文字色</label>
+        <input type="color" id="color-text" value="#111111">
+      </div>
+      <div class="control-group">
+        <label>背景色</label>
+        <input type="color" id="color-bg" value="#FFFFFF">
+      </div>
+      <div class="control-group">
+        <label>背景画像</label>
+        <input type="file" id="bg-image-input" accept="image/*">
+      </div>
+      <div class="control-group">
+        <label>画像の濃さ</label>
+        <input type="range" id="bg-opacity-input" min="0.1" max="1" step="0.05" value="1">
+      </div>
+    </div>
+  </div>
+  <button type="button" id="generate-btn">決定（画像を保存）</button>
 </div>
 
+<script>
+const TATEGAKI_TRANSFER_KEY = 'saikiyo2_tategaki_payload';
+
+const UI = {
+  text: document.getElementById('text-input'),
+  font: document.getElementById('font-select'),
+  fontSize: document.getElementById('fontsize-input'),
+  spacing: document.getElementById('spacing-input'),
+  stroke: document.getElementById('stroke-select'),
+  bgRibbon: document.getElementById('bg-ribbon-select'),
+  ribbonOpacity: document.getElementById('ribbon-opacity-input'),
+  ribbonOpacityGroup: document.getElementById('ribbon-opacity-group'),
+  colorText: document.getElementById('color-text'),
+  colorBg: document.getElementById('color-bg'),
+  bgImageInput: document.getElementById('bg-image-input'),
+  bgOpacity: document.getElementById('bg-opacity-input'),
+  btnPreview: document.getElementById('btn-preview'),
+  btnUndo: document.getElementById('btn-undo'),
+  btnRedo: document.getElementById('btn-redo'),
+  btnGenerate: document.getElementById('generate-btn'),
+  canvas: document.getElementById('canvas'),
+  ctx: document.getElementById('canvas').getContext('2d'),
+  previewImg: document.getElementById('preview-img')
+};
+
+const AppState = {
+  uploadedBgImage: null,
+  history: [],
+  historyIndex: -1,
+};
+
+const Utils = {
+  getRadioValue: (name) => document.querySelector(`input[name="${name}"]:checked`).value,
+  setRadioValue: (name, value) => {
+    const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+    if (radio) radio.checked = true;
+  },
+  updateRibbonOpacityState: () => {
+    const isNone = UI.bgRibbon.value === 'none';
+    UI.ribbonOpacity.disabled = isNone;
+    UI.ribbonOpacityGroup.style.opacity = isNone ? '0.4' : '1.0';
+  },
+  captureState: () => ({
+    direction: Utils.getRadioValue('direction'), ratio: Utils.getRadioValue('ratio'), text: UI.text.value,
+    font: UI.font.value, fontSize: UI.fontSize.value, spacing: UI.spacing.value,
+    stroke: UI.stroke.value, bgRibbon: UI.bgRibbon.value, ribbonOpacity: UI.ribbonOpacity.value,
+    colorText: UI.colorText.value, colorBg: UI.colorBg.value, bgImage: AppState.uploadedBgImage, bgOpacity: UI.bgOpacity.value
+  }),
+  saveState: () => {
+    if (AppState.historyIndex < AppState.history.length - 1) {
+      AppState.history = AppState.history.slice(0, AppState.historyIndex + 1);
+    }
+    AppState.history.push(Utils.captureState());
+    AppState.historyIndex++;
+    Utils.updateHistoryButtons();
+  },
+  restoreState: (index) => {
+    if (index < 0 || index >= AppState.history.length) return;
+    const s = AppState.history[index];
+    Utils.setRadioValue('direction', s.direction); Utils.setRadioValue('ratio', s.ratio);
+    UI.text.value = s.text; UI.font.value = s.font; UI.fontSize.value = s.fontSize; UI.spacing.value = s.spacing;
+    UI.stroke.value = s.stroke; UI.colorText.value = s.colorText; UI.colorBg.value = s.colorBg;
+    if (s.bgRibbon) UI.bgRibbon.value = s.bgRibbon;
+    if (s.ribbonOpacity !== undefined) UI.ribbonOpacity.value = s.ribbonOpacity;
+    if (s.bgOpacity !== undefined) UI.bgOpacity.value = s.bgOpacity;
+    AppState.uploadedBgImage = s.bgImage;
+    AppState.historyIndex = index;
+    Utils.updateRibbonOpacityState(); Utils.updateHistoryButtons(); CoreRender.draw();
+  },
+  updateHistoryButtons: () => {
+    UI.btnUndo.disabled = AppState.historyIndex <= 0;
+    UI.btnRedo.disabled = AppState.historyIndex >= AppState.history.length - 1;
+  },
+  consumeTransferredPayload: () => {
+    try {
+      const raw = localStorage.getItem(TATEGAKI_TRANSFER_KEY);
+      if (!raw) return;
+      localStorage.removeItem(TATEGAKI_TRANSFER_KEY);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.text === 'string' && parsed.text.trim()) {
+        UI.text.value = parsed.text;
+      }
+    } catch (_) {}
+  }
+};
+
+const CoreRender = {
+  applyCanvasRatio: () => {
+    const ratio = Utils.getRadioValue('ratio');
+    if (ratio === 'portrait') { UI.canvas.width = 1080; UI.canvas.height = 1350; }
+    else if (ratio === 'square' || ratio === 'circle') { UI.canvas.width = 1080; UI.canvas.height = 1080; }
+    else if (ratio === 'landscape') { UI.canvas.width = 1200; UI.canvas.height = 675; }
+  },
+
+  drawBackground: (width, height, ratio) => {
+    const ctx = UI.ctx;
+    if (ratio === 'circle') {
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, Math.min(width, height) / 2, 0, Math.PI * 2);
+      ctx.clip();
+    }
+    ctx.fillStyle = UI.colorBg.value;
+    ctx.fillRect(0, 0, width, height);
+
+    if (AppState.uploadedBgImage) {
+      ctx.save();
+      ctx.globalAlpha = parseFloat(UI.bgOpacity.value);
+      const img = AppState.uploadedBgImage;
+      const hRatio = width / img.width; const vRatio = height / img.height;
+      const imgRatio = Math.max(hRatio, vRatio);
+      const cx = (width - img.width * imgRatio) / 2;
+      const cy = (height - img.height * imgRatio) / 2;
+      ctx.drawImage(img, 0, 0, img.width, img.height, cx, cy, img.width * imgRatio, img.height * imgRatio);
+      ctx.restore();
+    }
+  },
+
+  drawRibbon: (ctx, x, y, w, h) => {
+    if (UI.bgRibbon.value === 'none') return;
+    ctx.save();
+    ctx.globalAlpha = (parseFloat(UI.ribbonOpacity.value) || 55) / 100;
+    ctx.fillStyle = UI.bgRibbon.value === 'white' ? '#FFFFFF' : '#000000';
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  },
+
+  drawVerticalText: (ctx, lines, width, height, fontSize, spacingRatio) => {
+    const charStepY = fontSize * 1.15;
+    const lineStepX = fontSize * spacingRatio;
+    const marginX = fontSize * 0.8; const marginY = fontSize * 1.2;
+
+    let maxChars = 0; let blockWidthOffset = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i] === "") blockWidthOffset += lineStepX * 0.5;
+      else {
+        if (i !== 0) blockWidthOffset += lineStepX;
+        if (lines[i].length > maxChars) maxChars = lines[i].length;
+      }
+    }
+
+    const blockHeight = maxChars * charStepY;
+    const startY = Math.max(50, (height - blockHeight) / 2);
+
+    CoreRender.drawRibbon(ctx, (width - (blockWidthOffset + fontSize)) / 2 - marginX, startY - marginY, (blockWidthOffset + fontSize) + marginX * 2, blockHeight + marginY * 2);
+
+    ctx.fillStyle = UI.colorText.value;
+    const strokeMode = UI.stroke.value;
+    let currentX = (width + blockWidthOffset + fontSize) / 2 - fontSize / 2;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line === "") { currentX -= lineStepX * 0.5; continue; }
+      let currentY = startY;
+
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        let drawChar = char; let offsetX = 0; let offsetY = 0;
+
+        if (char === '「') drawChar = '﹁'; else if (char === '」') drawChar = '﹂';
+        else if (char === '『') drawChar = '﹃'; else if (char === '』') drawChar = '﹄';
+        else if (char === '（') drawChar = '︵'; else if (char === '）') drawChar = '︶';
+        else if (char === '、') drawChar = '︑'; else if (char === '。') drawChar = '︒';
+        else if ('ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ'.includes(char)) {
+          offsetX = fontSize * 0.15; offsetY = -fontSize * 0.15;
+        }
+
+        if (['ー', '―', '〜', '～', '…', '⋯'].includes(char)) {
+          ctx.save();
+          ctx.translate(currentX + offsetX, currentY + offsetY + (fontSize / 2));
+          ctx.rotate(Math.PI / 2);
+
+          ctx.textBaseline = 'middle';
+          ctx.textAlign = 'center';
+
+          if (strokeMode !== 'none') {
+            ctx.strokeStyle = strokeMode === 'white' ? '#FFFFFF' : '#888888';
+            ctx.lineWidth = 6; ctx.lineJoin = 'round';
+            ctx.strokeText(drawChar, 0, 0);
+          }
+          ctx.fillText(drawChar, 0, 0);
+          ctx.restore();
+          currentY += charStepY;
+          continue;
+        }
+
+        ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+        if (strokeMode !== 'none') {
+          ctx.strokeStyle = strokeMode === 'white' ? '#FFFFFF' : '#888888';
+          ctx.lineWidth = 6; ctx.lineJoin = 'round';
+          ctx.strokeText(drawChar, currentX + offsetX, currentY + offsetY);
+        }
+        ctx.fillText(drawChar, currentX + offsetX, currentY + offsetY);
+        currentY += charStepY;
+      }
+      currentX -= lineStepX;
+    }
+  },
+
+  drawHorizontalText: (ctx, lines, width, height, fontSize, spacingRatio) => {
+    ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    const lineStepY = fontSize * spacingRatio;
+    let maxLineWidth = 0;
+    for (const line of lines) {
+      const metrics = ctx.measureText(line);
+      if (metrics.width > maxLineWidth) maxLineWidth = metrics.width;
+    }
+    const blockHeight = lines.length * lineStepY;
+    let currentY = Math.max(50, (height - blockHeight) / 2);
+    const startX = (width - maxLineWidth) / 2;
+    const marginX = fontSize * 0.8; const marginY = fontSize * 1.2;
+
+    const actualBlockHeight = lines.length > 0 ? (lines.length - 1) * lineStepY + fontSize : 0;
+    CoreRender.drawRibbon(ctx, startX - marginX, currentY - marginY, maxLineWidth + marginX * 2, actualBlockHeight + marginY * 2);
+
+    ctx.fillStyle = UI.colorText.value;
+    const strokeMode = UI.stroke.value;
+    for (const line of lines) {
+      if (strokeMode !== 'none') {
+        ctx.strokeStyle = strokeMode === 'white' ? '#FFFFFF' : '#888888';
+        ctx.lineWidth = 6; ctx.lineJoin = 'round';
+        ctx.strokeText(line, startX, currentY);
+      }
+      ctx.fillText(line, startX, currentY);
+      currentY += lineStepY;
+    }
+  },
+
+  draw: () => {
+    CoreRender.applyCanvasRatio();
+    const ctx = UI.ctx; const w = UI.canvas.width; const h = UI.canvas.height;
+    const direction = Utils.getRadioValue('direction');
+    const ratio = Utils.getRadioValue('ratio');
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.save();
+
+    CoreRender.drawBackground(w, h, ratio);
+
+    const rawText = UI.text.value.replace(/\(/g, '（').replace(/\)/g, '）').replace(/…/g, '︙');
+    const lines = rawText.split('\n');
+    const fontSize = parseFloat(UI.fontSize.value) || 36;
+    const spacingRatio = parseFloat(UI.spacing.value) || 1.8;
+    ctx.font = `normal 400 ${fontSize}px ${UI.font.value}`;
+
+    if (direction === 'vertical') {
+      CoreRender.drawVerticalText(ctx, lines, w, h, fontSize, spacingRatio);
+    } else {
+      CoreRender.drawHorizontalText(ctx, lines, w, h, fontSize, spacingRatio);
+    }
+
+    ctx.restore();
+    UI.previewImg.src = UI.canvas.toDataURL('image/png');
+  }
+};
+
+function initEvents() {
+  UI.bgRibbon.addEventListener('change', () => { Utils.updateRibbonOpacityState(); CoreRender.draw(); });
+  UI.ribbonOpacity.addEventListener('input', CoreRender.draw);
+  UI.bgImageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const r = new FileReader();
+      r.onload = (event) => { const img = new Image(); img.onload = () => { AppState.uploadedBgImage = img; }; img.src = event.target.result; };
+      r.readAsDataURL(file);
+    } else { AppState.uploadedBgImage = null; }
+  });
+
+  document.querySelectorAll('.preset-btns button').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const type = e.target.dataset.preset;
+      if (type === 'monochrome') { UI.colorText.value = '#111111'; UI.colorBg.value = '#FFFFFF'; }
+      else if (type === 'silver') { UI.colorText.value = '#333333'; UI.colorBg.value = '#F5F5F0'; }
+      AppState.uploadedBgImage = null; UI.bgImageInput.value = ''; UI.bgOpacity.value = '1';
+    });
+  });
+
+  UI.btnPreview.addEventListener('click', () => {
+    Utils.saveState();
+    document.fonts.load(`normal 400 ${parseFloat(UI.fontSize.value) || 36}px ${UI.font.value}`).then(() => CoreRender.draw());
+  });
+  UI.btnUndo.addEventListener('click', () => Utils.restoreState(AppState.historyIndex - 1));
+  UI.btnRedo.addEventListener('click', () => Utils.restoreState(AppState.historyIndex + 1));
+  document.querySelectorAll('input[name="direction"], input[name="ratio"]').forEach(r => r.addEventListener('change', CoreRender.draw));
+
+  UI.btnGenerate.addEventListener('click', () => {
+    Utils.saveState(); CoreRender.draw();
+    if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) { alert("【iPhoneをご利用の方へ】\n長押しして画像を保存してください。"); return; }
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    const link = document.createElement('a');
+    link.download = `tanka_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.png`;
+    link.href = UI.canvas.toDataURL('image/png'); link.click();
+  });
+
+  window.addEventListener('load', () => {
+    Utils.consumeTransferredPayload();
+    Utils.updateRibbonOpacityState();
+    document.fonts.ready.then(() => {
+      setTimeout(() => { if (AppState.history.length === 0) Utils.saveState(); CoreRender.draw(); }, 200);
+    });
+  });
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) document.fonts.ready.then(() => setTimeout(() => CoreRender.draw(), 50));
+  });
+}
+
+initEvents();
+</script>
 </body>
 </html>
-```[cite: 10]
-
----
-
-### 2. `saikiyo2.html`
-
-```html
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
-<title>さいきよ2</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <header>
-    <button type="button" id="btn-open-display" class="header-wing-btn">表示</button>
-    <button type="button" id="btn-top">さいきよ2</button>
-    <button type="button" id="btn-open-shelf" class="header-wing-btn">書庫</button>
-  </header>
-
-  <!-- 検索・推敲固定中バナー -->
-  <div id="search-mode-banner" style="display: none;">
-    <span id="search-banner-text">検索中</span>
-    <div class="search-banner-actions">
-      <button type="button" id="btn-search-banner-fix">この結果のまま新規作成</button>
-      <button type="button" id="btn-search-banner-reset">解除</button>
-    </div>
-  </div>
-
-  <main id="timeline"></main>
-
-  <!-- 右下フローティング ＋ ボタン（80px正円） -->
-  <button type="button" id="btn-fab" aria-label="新規入力">＋</button>
-
-  <!-- 右端フロート選択ドック -->
-  <aside id="selection-dock" aria-hidden="true">
-    <div id="selection-count" class="dock-count">0</div>
-    <button type="button" id="btn-select-all" class="dock-btn secondary">全選択</button>
-    <button type="button" id="btn-batch-edit" class="dock-btn primary">一括編集</button>
-    <button type="button" id="btn-to-desk" class="dock-btn primary">机へ</button>
-    <button type="button" id="btn-cancel-selection" class="dock-btn ghost dock-btn-cancel">取消</button>
-  </aside>
-
-  <!-- せり上がる入力コンソール -->
-  <div id="console-area">
-    <textarea id="input-content" rows="1" placeholder="本文を入力..."></textarea>
-    <div class="console-bottom">
-      <button type="button" id="btn-search" class="console-btn-icon">検索</button>
-      <textarea id="input-tags" placeholder="タグ（#メモ #控 等）"></textarea>
-      <button type="button" id="btn-send" class="console-btn-icon">書込</button>
-    </div>
-  </div>
-
-  <!-- カード詳細・編集パネル -->
-  <div id="panel-edit" class="panel panel-full">
-    <div class="panel-header">
-      <h2 id="edit-panel-title">カード編集</h2>
-    </div>
-
-    <div class="edit-group" id="edit-timestamp-group">
-      <label>作成日</label>
-      <div id="edit-timestamp" class="edit-meta-box"></div>
-    </div>
-
-    <div id="edit-content-view" class="edit-readonly"></div>
-
-    <div class="edit-group">
-      <label for="edit-memo">メモ</label>
-      <textarea id="edit-memo" placeholder="あとから書き換え自由"></textarea>
-    </div>
-
-    <div class="edit-group">
-      <label for="edit-tags">タグ</label>
-      <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
-      <div id="edit-tags-hint" class="edit-hint" style="display: none;"></div>
-      <div id="edit-helper-tags" class="tag-helpers"></div>
-    </div>
-
-    <div class="edit-actions-stack">
-      <div class="edit-actions">
-        <button type="button" id="btn-delete-edit">ゴミ箱へ</button>
-        <button type="button" id="btn-copy-edit">コピー</button>
-      </div>
-      <div class="edit-actions">
-        <button type="button" id="btn-shelf-edit">書庫へ</button>
-        <button type="button" id="btn-save-edit">保存</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 内蔵 机パネル（並べ替え） -->
-  <div id="panel-desk" class="panel panel-full panel-desk">
-    <div id="desk-screen-sort" class="desk-screen active">
-      <div class="desk-toolbar">
-        <button type="button" id="desk-toggle-font" class="desk-toggle-btn">ゴシック</button>
-        <button type="button" id="desk-toggle-dir" class="desk-toggle-btn">横書き</button>
-        <button type="button" id="desk-toggle-wrap" class="desk-toggle-btn">1行表示</button>
-      </div>
-      <div class="desk-sort-wrapper">
-        <div id="desk-sort-area"></div>
-        <div id="desk-custom-scrollbar"><div id="desk-custom-thumb"></div></div>
-      </div>
-      <div class="desk-btn-group">
-        <button type="button" id="desk-btn-to-finish" class="dm-btn primary">次へ</button>
-      </div>
-    </div>
-
-    <div id="desk-screen-finish" class="desk-screen">
-      <div id="desk-preview-area" class="desk-preview-area"></div>
-      <div class="desk-meta-form">
-        <input type="text" id="desk-shelf-title" class="wing-input" placeholder="タイトル（空欄なら1枚目の冒頭5文字）">
-        <textarea id="desk-shelf-memo" class="dm-textarea dm-textarea-prose" rows="2" placeholder="メモ（任意）"></textarea>
-        <input type="text" id="desk-shelf-tags" class="wing-input" placeholder="タグ（例: #まとめ #控）">
-      </div>
-      <div class="desk-btn-stack">
-        <div class="desk-btn-group">
-          <button type="button" id="desk-btn-back-sort" class="dm-btn secondary">並べ替えへ</button>
-          <button type="button" id="desk-btn-copy" class="dm-btn secondary">コピー</button>
-        </div>
-        <div class="desk-btn-group">
-          <button type="button" id="desk-btn-save-shelf" class="dm-btn primary">書庫へ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 左：表示パネル -->
-  <div id="panel-display" class="panel panel-wing">
-    <div class="panel-header">
-      <h2>表示</h2>
-      <div class="panel-header-actions">
-        <button type="button" id="btn-display-reset">条件クリア</button>
-      </div>
-    </div>
-
-    <div id="display-status" class="panel-status-bar">全期間 0枚</div>
-
-    <!-- 常時オープン：期間・表示タグ・表示しないタグ・タイムマシン -->
-    <div class="panel-box">
-      <section class="box-section">
-        <h3>期間</h3>
-        <p class="dm-desc">空欄なら全期間を表示します（片側のみの指定も可）。</p>
-        <div class="date-range-row">
-          <input type="date" id="filter-date-from" class="wing-input">
-          <span class="date-range-sep">〜</span>
-          <input type="date" id="filter-date-to" class="wing-input">
-          <button type="button" id="btn-clear-date" class="clear-mini-btn" title="期間クリア">×</button>
-        </div>
-      </section>
-
-      <section class="box-section">
-        <h3>タグ</h3>
-        <p class="dm-desc">空白区切りでAND、| でOR絞り込み（空欄なら全タグ）。</p>
-        <div class="input-with-clear">
-          <input type="text" id="filter-tag-input" class="wing-input" placeholder="例: #メモ #控 | #保留">
-          <button type="button" id="btn-clear-tag" class="clear-mini-btn" title="タグクリア">×</button>
-        </div>
-        <div id="filter-helper-tags" class="filter-chip-group" style="margin-top: 8px;"></div>
-      </section>
-
-      <section class="box-section">
-        <h3>表示しないタグ</h3>
-        <p class="dm-desc">ここに指定したタグの付いたカードは隠します（そのタグや検索語を指定したときは全貫通で表示）。</p>
-        <div class="input-with-clear">
-          <input type="text" id="hidden-tag-input" class="wing-input" placeholder="例: #ボツ #済">
-          <button type="button" id="btn-clear-hidden-tag" class="clear-mini-btn" title="非表示タグクリア">×</button>
-        </div>
-        <div id="hidden-helper-tags" class="filter-chip-group" style="margin-top: 8px;"></div>
-      </section>
-
-      <section class="box-section">
-        <h3>タイムマシン</h3>
-        <p class="dm-desc">でかけるを押すと全期間表示へ一時切替し、その日付へ移動します。</p>
-        <div class="date-jump-row">
-          <input type="date" id="timemachine-date" class="wing-input">
-          <button type="button" id="btn-timemachine-go" class="dm-btn primary jump-btn">でかける</button>
-          <button type="button" id="btn-timemachine-back" class="dm-btn secondary jump-btn">かえる</button>
-        </div>
-      </section>
-    </div>
-
-    <!-- 折りたたみ：工房（ヘルプタグ制作・タグ加工・JSONファイル制作） -->
-    <details id="fold-workshop" class="panel-fold">
-      <summary class="panel-fold-summary">工房</summary>
-      <div class="panel-fold-body">
-        <section class="box-section">
-          <h3>ヘルプタグ制作</h3>
-          <p class="dm-desc">1つずつ作って並べ、不要なものは×で消せます。編集・絞り込み・非表示欄でトグル切替に使えます。</p>
-          <div class="dm-clean-row">
-            <input type="text" id="workshop-new-helper-tag" class="wing-input" placeholder="タグを1つ入力（例: #ボツ）">
-            <button type="button" id="btn-workshop-add-helper-tag" class="dm-btn secondary side-compact-btn">追加</button>
-          </div>
-          <div id="workshop-helper-tag-list" class="filter-chip-group" style="margin-top: 8px;"></div>
-        </section>
-
-        <section class="box-section">
-          <h3>タグ加工</h3>
-          <p class="dm-desc">カードのタグだけを書き換えます（本文は変わりません）。</p>
-          <div class="seg-group" style="margin-bottom: 12px;">
-            <button type="button" class="seg-btn active" data-tag-edit-scope="filtered">表示期間対象</button>
-            <button type="button" class="seg-btn" data-tag-edit-scope="all">全期間対象</button>
-          </div>
-
-          <div class="dm-clean-block">
-            <label>置換・削除（変更後が空欄なら削除）</label>
-            <div class="tag-replace-row">
-              <input type="text" id="tag-edit-from" class="wing-input" placeholder="対象タグ">
-              <span class="date-range-sep">→</span>
-              <input type="text" id="tag-edit-to" class="wing-input" placeholder="変更後（空で削除）">
-              <button type="button" id="btn-tag-replace" class="dm-btn primary side-compact-btn">実行</button>
-            </div>
-          </div>
-
-          <div class="dm-clean-block">
-            <label>一括追加</label>
-            <div class="dm-clean-row">
-              <input type="text" id="tag-edit-add" class="wing-input" placeholder="追加するタグ（複数可）">
-              <button type="button" id="btn-tag-add" class="dm-btn secondary side-compact-btn">追加</button>
-            </div>
-          </div>
-
-          <div class="dm-clean-block">
-            <button type="button" id="btn-tag-clear-all" class="dm-btn danger-flex full-width">対象カードのタグをすべて消去</button>
-          </div>
-
-          <details class="sub-fold">
-            <summary>使用中のタグ一覧（タップで対象タグへ入力）</summary>
-            <div id="tag-edit-active-list" class="filter-chip-group" style="margin-top: 10px;"></div>
-          </details>
-        </section>
-
-        <section class="box-section">
-          <h3>ファイル制作（JSON）</h3>
-          <p class="dm-desc">表示中のカード、またはチェック選択中のカードから配布・共有用JSONファイルを作ります。</p>
-          <div class="seg-group" style="margin-bottom: 10px;">
-            <button type="button" class="seg-btn active" data-json-target="displayed">表示中のカード</button>
-            <button type="button" class="seg-btn" data-json-target="selected">選択中のカード</button>
-          </div>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-workshop-export-share" class="dm-btn primary">共有で送る</button>
-            <button type="button" id="btn-workshop-export-file" class="dm-btn secondary">JSON保存</button>
-          </div>
-        </section>
-      </div>
-    </details>
-
-    <!-- 折りたたみ：設定 -->
-    <details id="fold-settings" class="panel-fold">
-      <summary class="panel-fold-summary">設定</summary>
-      <div class="panel-fold-body">
-        <section class="box-section">
-          <h3>タイムライン表示項目</h3>
-          <div class="toggle-grid">
-            <button type="button" class="seg-btn" data-display-toggle="showDate">日時</button>
-            <button type="button" class="seg-btn" data-display-toggle="showCheck">チェック</button>
-            <button type="button" class="seg-btn" data-display-toggle="showTags">タグ</button>
-            <button type="button" class="seg-btn" data-display-toggle="showMemo">メモ</button>
-            <button type="button" class="seg-btn" data-display-toggle="oneLine">1行表示</button>
-          </div>
-          <div class="seg-group" style="margin-top: 10px;">
-            <button type="button" class="seg-btn active" data-sort="asc">古い順（下が最新）</button>
-            <button type="button" class="seg-btn" data-sort="desc">新しい順（上が最新）</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>配色テーマ</h3>
-          <div class="seg-group seg-grid-2">
-            <button type="button" class="seg-btn" data-config-theme="kinari">生成り</button>
-            <button type="button" class="seg-btn" data-config-theme="ginnezumi">銀鼠</button>
-            <button type="button" class="seg-btn" data-config-theme="monochrome">白黒</button>
-            <button type="button" class="seg-btn" data-config-theme="sumi">墨</button>
-          </div>
-          <div class="custom-palette-box">
-            <div class="palette-row">
-              <div class="palette-label">1色で自動生成</div>
-              <input type="color" id="color-auto-picker" class="color-swatch-input" title="基準色を選択">
-            </div>
-            <div class="palette-row">
-              <div class="palette-label">3色を自作（文字・枠・背景）</div>
-              <div class="palette-triplets">
-                <input type="color" id="color-manual-main" class="color-swatch-input" title="文字色">
-                <input type="color" id="color-manual-sub" class="color-swatch-input" title="副調色">
-                <input type="color" id="color-manual-bg" class="color-swatch-input" title="背景色">
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>文字サイズ（5段階）</h3>
-          <div class="seg-group">
-            <button type="button" class="seg-btn" data-config-size="1">1.0</button>
-            <button type="button" class="seg-btn" data-config-size="2">1.1</button>
-            <button type="button" class="seg-btn" data-config-size="3">1.2</button>
-            <button type="button" class="seg-btn" data-config-size="4">1.3</button>
-            <button type="button" class="seg-btn" data-config-size="5">1.4</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>書体</h3>
-          <div class="seg-group">
-            <button type="button" class="seg-btn" data-config-font="gothic">ゴシック</button>
-            <button type="button" class="seg-btn" data-config-font="mincho">明朝</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>角丸</h3>
-          <div class="seg-group">
-            <button type="button" class="seg-btn" data-config-radius="none">なし</button>
-            <button type="button" class="seg-btn" data-config-radius="soft">あり</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>アプリ名変更</h3>
-          <div class="dm-clean-row">
-            <input type="text" id="config-app-title" class="wing-input" placeholder="さいきよ2">
-            <button type="button" id="btn-save-app-title" class="dm-btn secondary side-compact-btn">変更</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>合言葉（起動ロック）</h3>
-          <p class="dm-desc">空欄のまま保存するとロックを解除します。</p>
-          <div class="dm-clean-row">
-            <input type="text" id="config-passphrase" class="wing-input" placeholder="合言葉を入力（空欄で解除）" autocomplete="new-password">
-            <button type="button" id="btn-save-passphrase" class="dm-btn primary side-compact-btn">設定</button>
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>画面と初期化</h3>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-toggle-fullscreen" class="dm-btn secondary">全画面表示の切替</button>
-          </div>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-reset-config" class="dm-btn danger-flex">設定を初期値に戻す</button>
-          </div>
-        </section>
-      </div>
-    </details>
-
-    <!-- 折りたたみ：about -->
-    <details id="fold-about" class="panel-fold">
-      <summary class="panel-fold-summary">about</summary>
-      <div class="panel-fold-body">
-        <p class="dm-desc" style="margin: 0;">さいきよ2 — テキストの記録・整理・書庫のための静かな道具です。</p>
-      </div>
-    </details>
-  </div>
-
-  <!-- 右：書庫パネル（上段：書庫＆バックアップ ／ 下段：データ管理） -->
-  <div id="panel-shelf" class="panel panel-wing">
-    <div id="shelf-list-view">
-      <div class="panel-header">
-        <h2>書庫</h2>
-      </div>
-
-      <!-- 上段：書庫＆全件バックアップ -->
-      <div class="panel-box">
-        <section class="box-section">
-          <h3>保管中（細枠：カード ／ 太枠：リスト）</h3>
-          <p class="dm-desc">タイムラインは消えません。ここにはコピーを保管します。</p>
-          <div id="shelf-list"></div>
-        </section>
-
-        <section class="box-section">
-          <h3>全件バックアップ</h3>
-          <p class="dm-desc">全タイムラインと全書庫をまとめて .txt ファイルにします。</p>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-export-share" class="dm-btn primary">共有で送る（メール等）</button>
-          </div>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-export-file" class="dm-btn secondary">ファイル保存</button>
-          </div>
-        </section>
-      </div>
-
-      <!-- 下段：データ管理 -->
-      <div class="panel-box">
-        <h3 class="box-title-large">データ管理</h3>
-        <div id="data-stats" class="panel-status-bar">集計中...</div>
-
-        <section class="box-section">
-          <h3>ファイル取り込み（差分）</h3>
-          <p class="dm-desc">既存のカードは消さず、未登録のIDだけ取り込みます（初代形式対応・ステータスはすべてタグ化）。</p>
-          <div class="dm-btn-row">
-            <button type="button" id="btn-import-file" class="dm-btn secondary">ファイルを選択 (.txt / .json)</button>
-            <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
-          </div>
-        </section>
-
-        <section class="box-section">
-          <h3>テキスト取り込み（差分）</h3>
-          <p class="dm-desc">1行空きで別カードとして取り込みます。すでに同じ本文があるカードはスキップします。</p>
-          <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1枚目&#10;&#10;2枚目&#10;&#10;3枚目"></textarea>
-          <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #メモ #控）">
-          <button type="button" id="btn-bulk-import" class="dm-btn primary full-width">テキスト取り込み</button>
-        </section>
-
-        <section class="box-section">
-          <h3>重複整理</h3>
-          <p class="dm-desc">本文・タグ・メモが完全一致する重複を検出し、古いIDを残して新しい方だけをゴミ箱へ移します。</p>
-          <button type="button" id="btn-dedupe-cards" class="dm-btn secondary full-width">重複を検出して整理</button>
-        </section>
-
-        <section class="box-section">
-          <details id="fold-trash" class="sub-fold">
-            <summary>ゴミ箱</summary>
-            <div style="margin-top: 10px;">
-              <p class="dm-desc">削除したカードの隔離場所です。戻すボタンで元のIDのままタイムラインへ復帰できます。</p>
-              <div id="trash-list" class="trash-list"></div>
-              <div class="dm-btn-row" style="margin-top: 10px;">
-                <button type="button" id="btn-trash-empty" class="dm-btn danger-flex">バックアップしてゴミ箱を空にする</button>
-              </div>
-            </div>
-          </details>
-        </section>
-      </div>
-    </div>
-
-    <!-- 書庫：詳細ビュー -->
-    <div id="shelf-detail-view" style="display: none;">
-      <div class="panel-header">
-        <h2 id="shelf-detail-title">書庫詳細</h2>
-        <button type="button" id="btn-shelf-back-list">書庫一覧へ</button>
-      </div>
-      <div id="shelf-detail-meta" class="shelf-detail-meta"></div>
-      <div id="shelf-detail-memo" class="shelf-detail-memo"></div>
-      <div id="shelf-detail-items" class="shelf-detail-items"></div>
-      <div class="shelf-detail-actions">
-        <div class="shelf-detail-return-row">
-          <button type="button" id="btn-shelf-tategaki" class="shelf-act-btn secondary">たてがきへ</button>
-          <button type="button" id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
-        </div>
-        <div class="shelf-detail-return-row">
-          <button type="button" id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
-          <button type="button" id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 起動時ロック画面 -->
-  <div id="panel-auth" class="auth-overlay" style="display: none;">
-    <div class="auth-box">
-      <h2>合言葉を入力してください</h2>
-      <input type="text" id="auth-input" class="auth-input" placeholder="合言葉" autocomplete="off">
-      <button type="button" id="btn-auth-unlock" class="auth-btn primary">開く</button>
-    </div>
-  </div>
-
-  <!-- 初回セットアップ -->
-  <div id="panel-first-boot" class="auth-overlay" style="display: none;">
-    <div class="auth-box">
-      <h2>初期セットアップ</h2>
-      <p class="auth-desc">起動時に合言葉で画面をロックする機能を使いますか？<br><span>※後から「表示」→「設定」でいつでも変更できます。</span></p>
-      <div id="first-boot-choices" class="auth-btn-row">
-        <button type="button" id="btn-first-boot-skip" class="auth-btn secondary">使わない</button>
-        <button type="button" id="btn-first-boot-use" class="auth-btn primary">使う</button>
-      </div>
-      <div id="first-boot-input-area" class="auth-input-stack" style="display: none;">
-        <input type="text" id="first-boot-pass-input" class="auth-input" placeholder="合言葉を入力" autocomplete="off">
-        <button type="button" id="btn-first-boot-save" class="auth-btn primary">決定して進む</button>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="main.js"></script>
-</body>
-</html>
-```[cite: 3, 6, 11]
-
----
-
-### 3. `style.css`
-
-UIボタンや見出し・ラベルは文字サイズ倍率（`--font-scale`）を乗せず固定とし、カード本文・メモ・プレビューなどの中身だけを100%〜140%（`1`〜`1.4`）で拡大する作りにしているロボ。角丸「あり」は `15px`、`#btn-fab` は `80px × 80px` の正円、`panel-full`（編集・机）はヘッダー下から開いてヘッダーを常に押せるようにしているロボよ。
-
-```css
-/* さいきよ2 - スタイルシート（統合整理版） */
-:root {
-  --bg-color: #FDFBF6;
-  --text-color: #1A1A1A;
-  --muted-color: #666666;
-  --header-bg: #EAE6DF;
-  --footer-bg: rgba(234, 230, 223, 0.92);
-  --console-bg: rgba(253, 251, 246, 0.98);
-  --surface-bg: #FFFFFF;
-  --border-subtle: #CCCCCC;
-  --header-height: 46px;
-  --radius: 0px;
-
-  --font-family: sans-serif;
-  --font-scale: 1;
-  --ui-small: 0.78rem;
-  --ui-base: 1rem;
-  --ui-large: 1.2rem;
-  --content-small: calc(0.78rem * var(--font-scale));
-  --content-base: calc(1rem * var(--font-scale));
-  --content-large: calc(1.25rem * var(--font-scale));
-  --line-height: 1.45;
-}
-
-/* テーマプリセット */
-body[data-theme="ginnezumi"] {
-  --bg-color: #FFFCF5;
-  --text-color: #595857;
-  --muted-color: #84817D;
-  --header-bg: #F0EBE1;
-  --footer-bg: rgba(240, 235, 225, 0.92);
-  --console-bg: rgba(255, 252, 245, 0.98);
-  --surface-bg: #FFFFFF;
-  --border-subtle: #D4CEC3;
-}
-body[data-theme="monochrome"] {
-  --bg-color: #FFFFFF;
-  --text-color: #111111;
-  --muted-color: #666666;
-  --header-bg: #E0E0E0;
-  --footer-bg: rgba(224, 224, 224, 0.92);
-  --console-bg: rgba(255, 255, 255, 0.98);
-  --surface-bg: #FFFFFF;
-  --border-subtle: #CCCCCC;
-}
-body[data-theme="sumi"] {
-  --bg-color: #1C1D1F;
-  --text-color: #EAE6DF;
-  --muted-color: #A09D96;
-  --header-bg: #2A2C2F;
-  --footer-bg: rgba(42, 44, 47, 0.94);
-  --console-bg: rgba(28, 29, 31, 0.98);
-  --surface-bg: #25272A;
-  --border-subtle: #44474C;
-}
-
-/* コンテンツ文字サイズ（5段階 1.0x〜1.4x） */
-body[data-size="1"] { --font-scale: 1; }
-body[data-size="2"] { --font-scale: 1.1; }
-body[data-size="3"] { --font-scale: 1.2; }
-body[data-size="4"] { --font-scale: 1.3; }
-body[data-size="5"] { --font-scale: 1.4; }
-
-/* 書体・角丸 */
-body[data-font="mincho"] {
-  --font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'Shippori Mincho', serif;
-}
-body[data-radius="soft"] {
-  --radius: 15px;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: var(--font-family);
-  overflow: hidden;
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-
-/* --- ヘッダー（常時表示・左右対称：表示 / さいきよ2 / 書庫） --- */
-header {
-  flex-shrink: 0;
-  height: var(--header-height);
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 0 14px;
-  background-color: var(--header-bg);
-  border-bottom: 1px solid var(--text-color);
-  z-index: 400;
-}
-header button {
-  background: none;
-  border: none;
-  color: var(--text-color);
-  font-size: var(--ui-base);
-  font-family: inherit;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 6px 4px;
-}
-#btn-open-display {
-  justify-self: start;
-  text-align: left;
-}
-#btn-top {
-  justify-self: center;
-  text-align: center;
-}
-#btn-open-shelf {
-  justify-self: end;
-  text-align: right;
-}
-.header-wing-btn.is-active {
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
-/* --- 検索・推敲固定バナー --- */
-#search-mode-banner {
-  flex-shrink: 0;
-  background: var(--header-bg);
-  color: var(--text-color);
-  border-bottom: 1px solid var(--text-color);
-  padding: 8px 14px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  flex-wrap: wrap;
-}
-.search-banner-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-#search-mode-banner button {
-  background: var(--text-color);
-  color: var(--bg-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  padding: 5px 10px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  font-family: inherit;
-  cursor: pointer;
-}
-#btn-search-banner-reset {
-  background: var(--bg-color) !important;
-  color: var(--text-color) !important;
-}
-
-/* --- タイムライン＆カード --- */
-#timeline {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 15px 110px 15px;
-  overscroll-behavior-y: none;
-}
-
-.card {
-  position: relative;
-  background: transparent;
-  margin-bottom: 34px;
-  display: flex;
-  flex-direction: column;
-}
-.card.is-compact {
-  margin-bottom: 18px;
-}
-
-.card-date {
-  padding: 0 5px 3px 5px;
-  font-size: var(--content-small);
-  color: var(--muted-color);
-  line-height: 1.2;
-}
-
-.card-body {
-  padding: 2px 5px;
-  cursor: pointer;
-  font-size: var(--content-base);
-  line-height: var(--line-height);
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: pan-y;
-}
-.card-body.is-oneline {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-memo-preview {
-  margin: 6px 5px 2px 5px;
-  padding: 6px 10px;
-  background: var(--header-bg);
-  border-left: 2px solid var(--text-color);
-  border-radius: var(--radius);
-  font-size: var(--content-small);
-  color: var(--text-color);
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.card-meta-wrap {
-  display: flex;
-  align-items: center;
-  padding: 2px 5px 0 0;
-  min-height: 28px;
-}
-.card-check-wrap {
-  margin-right: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.card-check {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 38px;
-  height: 38px;
-  margin: 0;
-  cursor: pointer;
-  outline: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  touch-action: manipulation;
-}
-.card-check::before {
-  content: "□";
-  font-size: 1.4rem;
-  color: var(--text-color);
-  line-height: 1;
-}
-.card-check:checked::before {
-  content: "☑";
-}
-
-.card-meta-info {
-  font-size: var(--content-small);
-  color: var(--muted-color);
-  line-height: 1.3;
-  word-break: break-all;
-}
-
-/* --- 右下フローティング ＋ ボタン（80px × 80px 正円固定） --- */
-#btn-fab {
-  position: fixed;
-  right: 16px;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  width: 80px;
-  height: 80px;
-  padding: 0;
-  font-size: 2.2rem;
-  line-height: 1;
-  font-weight: bold;
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--text-color);
-  color: var(--bg-color);
-  border: 1px solid var(--text-color);
-  border-radius: 50%;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  z-index: 200;
-}
-#btn-fab:active {
-  opacity: 0.72;
-}
-
-/* --- 右端フロート選択ドック --- */
-#selection-dock {
-  position: fixed;
-  right: 0;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  width: 146px;
-  background: var(--footer-bg);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--text-color);
-  border-right: none;
-  border-radius: var(--radius) 0 0 var(--radius);
-  padding: 12px 10px;
-  box-shadow: -4px 4px 16px rgba(0, 0, 0, 0.2);
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  z-index: 220;
-  transform: translateX(115%);
-  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-  pointer-events: none;
-}
-#selection-dock.open {
-  transform: translateX(0);
-  pointer-events: auto;
-}
-.dock-count {
-  text-align: center;
-  font-size: var(--ui-base);
-  font-weight: bold;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--text-color);
-}
-.dock-btn {
-  width: 100%;
-  min-height: 46px;
-  padding: 8px 6px;
-  font-size: var(--ui-base);
-  font-weight: bold;
-  font-family: inherit;
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.dock-btn.primary {
-  background: var(--text-color);
-  color: var(--bg-color);
-}
-.dock-btn.secondary {
-  background: var(--header-bg);
-  color: var(--text-color);
-}
-.dock-btn.ghost {
-  background: var(--bg-color);
-  color: var(--text-color);
-}
-.dock-btn-cancel {
-  margin-top: 4px;
-}
-
-/* --- せり上がる入力コンソール（入力文字サイズ 18px 固定） --- */
-#console-area {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--console-bg);
-  backdrop-filter: blur(10px);
-  padding: 10px 10px calc(16px + env(safe-area-inset-bottom, 0px)) 10px;
-  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.08);
-  border-top: 1px solid var(--text-color);
-  z-index: 210;
-  transform: translateY(120%);
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-#console-area.open {
-  transform: translateY(0);
-}
-
-#input-content {
-  width: 100%;
-  min-height: 38px;
-  max-height: 35vh;
-  padding: 6px 10px;
-  font-size: 18px;
-  line-height: 1.4;
-  font-family: inherit;
-  color: var(--text-color);
-  background: transparent;
-  border: none;
-  outline: none;
-  resize: none;
-  overflow-y: auto;
-  field-sizing: content;
-}
-#input-content::placeholder {
-  color: var(--muted-color);
-}
-
-.console-bottom {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-.console-btn-icon {
-  width: 56px;
-  height: 45px;
-  flex-shrink: 0;
-  padding: 0;
-  font-weight: bold;
-  font-size: 0.9rem;
-  font-family: inherit;
-  border-radius: var(--radius);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-}
-#btn-search {
-  background: var(--header-bg);
-  color: var(--text-color);
-  border: 1px solid var(--text-color);
-}
-#btn-search.is-searching,
-#btn-search.is-suiko {
-  background: var(--text-color);
-  color: var(--bg-color);
-}
-#btn-send {
-  background: var(--text-color);
-  color: var(--bg-color);
-  border: 1px solid var(--text-color);
-}
-#input-tags {
-  flex: 1;
-  height: 45px;
-  padding: 10px;
-  line-height: 1.25;
-  font-size: 16px;
-  font-family: inherit;
-  color: var(--text-color);
-  background: var(--header-bg);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  outline: none;
-  resize: none;
-  overflow: hidden;
-}
-
-/* --- パネル共通（ヘッダーは常に表示するため上端をヘッダー下に揃える） --- */
-.panel {
-  display: none;
-  position: fixed;
-  top: var(--header-height);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--bg-color);
-  padding: 18px 16px 40px 16px;
-  overflow-y: auto;
-}
-.panel-full {
-  z-index: 350;
-}
-.panel-wing {
-  z-index: 280;
-}
-.panel.active {
-  display: block;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 2px solid var(--text-color);
-  margin-bottom: 14px;
-  padding-bottom: 10px;
-}
-.panel-header h2 {
-  margin: 0;
-  font-size: var(--ui-large);
-}
-.panel-header button {
-  background: none;
-  border: none;
-  font-size: var(--ui-base);
-  font-family: inherit;
-  font-weight: bold;
-  cursor: pointer;
-  color: var(--text-color);
-}
-.panel-header-actions {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-}
-
-.panel-status-bar {
-  background: var(--header-bg);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  padding: 9px 12px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  margin-bottom: 14px;
-}
-
-/* --- 四角枠コンテナ＆折りたたみ --- */
-.panel-box {
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  background: var(--surface-bg);
-  padding: 14px;
-  margin-bottom: 16px;
-}
-.box-title-large {
-  margin: 0 0 12px 0;
-  font-size: var(--ui-large);
-  border-bottom: 1px solid var(--text-color);
-  padding-bottom: 6px;
-}
-.box-section {
-  border-bottom: 1px solid var(--border-subtle);
-  padding-bottom: 16px;
-  margin-bottom: 16px;
-}
-.box-section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-.box-section h3 {
-  margin: 0 0 8px 0;
-  font-size: var(--ui-base);
-}
-
-.panel-fold {
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  background: var(--surface-bg);
-  margin-bottom: 12px;
-  overflow: hidden;
-}
-.panel-fold-summary {
-  padding: 13px 14px;
-  font-size: var(--ui-base);
-  font-weight: bold;
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: var(--header-bg);
-}
-.panel-fold-summary::-webkit-details-marker {
-  display: none;
-}
-.panel-fold-summary::after {
-  content: "＋";
-  font-weight: bold;
-}
-.panel-fold[open] > .panel-fold-summary {
-  border-bottom: 1px solid var(--text-color);
-}
-.panel-fold[open] > .panel-fold-summary::after {
-  content: "－";
-}
-.panel-fold-body {
-  padding: 14px;
-}
-
-.sub-fold {
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-  padding: 8px 10px;
-  background: var(--bg-color);
-}
-.sub-fold summary {
-  cursor: pointer;
-  font-size: var(--ui-small);
-  font-weight: bold;
-}
-
-/* --- 入力・ボタン共通 --- */
-.wing-input {
-  flex: 1;
-  min-width: 0;
-  height: 42px;
-  padding: 0 10px;
-  font-size: var(--ui-base);
-  font-family: inherit;
-  color: var(--text-color);
-  background: var(--bg-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-}
-.input-with-clear,
-.date-range-row,
-.date-jump-row,
-.tag-replace-row,
-.dm-clean-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.date-range-sep {
-  flex-shrink: 0;
-  font-weight: bold;
-  font-size: var(--ui-base);
-}
-.clear-mini-btn {
-  width: 38px;
-  height: 42px;
-  flex-shrink: 0;
-  background: var(--header-bg);
-  color: var(--text-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  font-weight: bold;
-  cursor: pointer;
-}
-.side-compact-btn {
-  flex: 0 0 72px !important;
-}
-.jump-btn {
-  flex: 0 0 auto !important;
-  padding: 0 12px !important;
-  font-size: var(--ui-small) !important;
-}
-
-.seg-group {
-  display: flex;
-  gap: 8px;
-}
-.seg-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.toggle-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.seg-btn {
-  flex: 1;
-  min-height: 42px;
-  padding: 6px 4px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  font-family: inherit;
-  background: var(--header-bg);
-  color: var(--text-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.seg-btn.active {
-  background: var(--text-color);
-  color: var(--bg-color);
-}
-
-.filter-chip-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.filter-chip {
-  padding: 6px 10px;
-  font-size: var(--ui-small);
-  font-family: inherit;
-  background: var(--header-bg);
-  color: var(--text-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.filter-chip.active {
-  background: var(--text-color);
-  color: var(--bg-color);
-  font-weight: bold;
-}
-.helper-tag-chip-wrap {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  background: var(--header-bg);
-  overflow: hidden;
-}
-.helper-tag-chip-label {
-  padding: 5px 8px;
-  font-size: var(--ui-small);
-  color: var(--text-color);
-}
-.helper-tag-chip-del {
-  background: transparent;
-  border: none;
-  border-left: 1px solid var(--text-color);
-  color: var(--text-color);
-  padding: 5px 7px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.dm-desc {
-  margin: 0 0 10px 0;
-  font-size: var(--ui-small);
-  color: var(--muted-color);
-  line-height: 1.5;
-}
-.dm-btn-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.dm-btn {
-  height: 42px;
-  padding: 0 12px;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  font-family: inherit;
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  cursor: pointer;
-  flex: 1;
-}
-.dm-btn.primary {
-  background: var(--text-color);
-  color: var(--bg-color);
-}
-.dm-btn.secondary {
-  background: var(--header-bg);
-  color: var(--text-color);
-}
-.dm-btn.danger-flex {
-  background: var(--bg-color);
-  color: var(--text-color);
-}
-.dm-btn.full-width {
-  width: 100%;
-  flex: none;
-}
-.dm-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.dm-textarea {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: var(--ui-small);
-  font-family: monospace;
-  color: var(--text-color);
-  background: var(--bg-color);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  margin-bottom: 8px;
-  resize: vertical;
-}
-.dm-textarea-prose {
-  font-family: inherit;
-  font-size: var(--content-base);
-  line-height: 1.55;
-}
-.dm-full-input {
-  width: 100%;
-  margin-bottom: 8px;
-}
-.dm-clean-block {
-  margin-bottom: 12px;
-}
-.dm-clean-block label {
-  display: block;
-  font-size: var(--ui-small);
-  font-weight: bold;
-  margin-bottom: 6px;
-}
-
-/* --- カラーパレット --- */
-.custom-palette-box {
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: var(--header-bg);
-  border: 1px solid var(--text-color);
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.palette-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.palette-label {
-  font-size: var(--ui-small);
-  font-
