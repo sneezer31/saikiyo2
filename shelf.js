@@ -1,4 +1,4 @@
-/** さいきよ2 - 書庫モジュール（単首/リスト枠線区別・D&D・詳細閲覧・個別/全件バックアップ・TL戻し） */
+/** さいきよ2 - 書庫モジュール（カード/リスト枠線区別・D&D・詳細・たてがき連携・全件バックアップ・TL戻し） */
 
 import {
   saveCard,
@@ -90,6 +90,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
   }
 
   async function renderList() {
+    if (!DOM.shelfList) return;
     const shelves = await loadAllShelves();
     DOM.shelfList.innerHTML = '';
 
@@ -379,7 +380,9 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     DOM.panelShelf.scrollTop = 0;
   }
 
-  DOM.btnShelfBackList.addEventListener('click', showListView);
+  if (DOM.btnShelfBackList) {
+    DOM.btnShelfBackList.addEventListener('click', showListView);
+  }
 
   if (DOM.btnShelfTategaki) {
     DOM.btnShelfTategaki.addEventListener('click', async () => {
@@ -400,19 +403,21 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     });
   }
 
-  DOM.btnShelfCopy.addEventListener('click', async () => {
-    if (!currentDetailShelfId) return;
-    const shelf = await getShelf(currentDetailShelfId);
-    if (!shelf || !Array.isArray(shelf.items)) return;
+  if (DOM.btnShelfCopy) {
+    DOM.btnShelfCopy.addEventListener('click', async () => {
+      if (!currentDetailShelfId) return;
+      const shelf = await getShelf(currentDetailShelfId);
+      if (!shelf || !Array.isArray(shelf.items)) return;
 
-    const text = shelf.items.map(i => i.content).join('\n\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('コピーしました。');
-    } catch (_) {
-      alert('コピーに失敗しました。');
-    }
-  });
+      const text = shelf.items.map(i => i.content).join('\n\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('コピーしました。');
+      } catch (_) {
+        alert('コピーに失敗しました。');
+      }
+    });
+  }
 
   async function allocateUniqueIds(count) {
     const existing = await loadAllCards();
@@ -428,45 +433,49 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     return ids;
   }
 
-  DOM.btnShelfReturnScatter.addEventListener('click', async () => {
-    if (!currentDetailShelfId) return;
-    const shelf = await getShelf(currentDetailShelfId);
-    if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
+  if (DOM.btnShelfReturnScatter) {
+    DOM.btnShelfReturnScatter.addEventListener('click', async () => {
+      if (!currentDetailShelfId) return;
+      const shelf = await getShelf(currentDetailShelfId);
+      if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
 
-    const ids = await allocateUniqueIds(shelf.items.length);
-    const newCards = shelf.items.map((item, idx) => ({
-      id: ids[idx],
-      content: item.content,
-      memo: item.memo || '',
-      tags: Array.isArray(item.tags) ? [...item.tags] : [],
-      lastupdated: ids[idx]
-    }));
+      const ids = await allocateUniqueIds(shelf.items.length);
+      const newCards = shelf.items.map((item, idx) => ({
+        id: ids[idx],
+        content: item.content,
+        memo: item.memo || '',
+        tags: Array.isArray(item.tags) ? [...item.tags] : [],
+        lastupdated: ids[idx]
+      }));
 
-    await bulkSaveCards(newCards);
-    await onTimelineUpdated();
-    onCloseWings();
-    alert(`バラでタイムラインへ追加しました (${newCards.length}枚)。`);
-  });
+      await bulkSaveCards(newCards);
+      await onTimelineUpdated();
+      onCloseWings();
+      alert(`バラでタイムラインへ追加しました (${newCards.length}枚)。`);
+    });
+  }
 
-  DOM.btnShelfReturnBlock.addEventListener('click', async () => {
-    if (!currentDetailShelfId) return;
-    const shelf = await getShelf(currentDetailShelfId);
-    if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
+  if (DOM.btnShelfReturnBlock) {
+    DOM.btnShelfReturnBlock.addEventListener('click', async () => {
+      if (!currentDetailShelfId) return;
+      const shelf = await getShelf(currentDetailShelfId);
+      if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
 
-    const [id] = await allocateUniqueIds(1);
-    const blockCard = {
-      id,
-      content: shelf.items.map(i => i.content).join('\n\n'),
-      memo: shelf.memo || '',
-      tags: Array.isArray(shelf.tags) ? [...shelf.tags] : [],
-      lastupdated: id
-    };
+      const [id] = await allocateUniqueIds(1);
+      const blockCard = {
+        id,
+        content: shelf.items.map(i => i.content).join('\n\n'),
+        memo: shelf.memo || '',
+        tags: Array.isArray(shelf.tags) ? [...shelf.tags] : [],
+        lastupdated: id
+      };
 
-    await saveCard(blockCard);
-    await onTimelineUpdated();
-    onCloseWings();
-    alert(`「${shelf.title || '無題'}」をまとめてタイムラインへ追加しました。`);
-  });
+      await saveCard(blockCard);
+      await onTimelineUpdated();
+      onCloseWings();
+      alert(`「${shelf.title || '無題'}」をまとめてタイムラインへ追加しました。`);
+    });
+  }
 
   async function buildFullBackupPayload() {
     const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
@@ -479,23 +488,27 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     };
   }
 
-  DOM.btnExportShare.addEventListener('click', async () => {
-    const payload = await buildFullBackupPayload();
-    const jsonStr = JSON.stringify(payload, null, 2);
-    const fileName = `saikiyo2_backup_${makeTimestampStr()}.txt`;
-    await shareOrDownload(
-      jsonStr,
-      fileName,
-      `さいきよ2 全件バックアップ`,
-      `カード ${payload.cards.length}枚 ／ 書庫 ${payload.shelves.length}件`
-    );
-  });
+  if (DOM.btnExportShare) {
+    DOM.btnExportShare.addEventListener('click', async () => {
+      const payload = await buildFullBackupPayload();
+      const jsonStr = JSON.stringify(payload, null, 2);
+      const fileName = `saikiyo2_backup_${makeTimestampStr()}.txt`;
+      await shareOrDownload(
+        jsonStr,
+        fileName,
+        'さいきよ2 全件バックアップ',
+        `カード ${payload.cards.length}枚 ／ 書庫 ${payload.shelves.length}`
+      );
+    });
+  }
 
-  DOM.btnExportFile.addEventListener('click', async () => {
-    const payload = await buildFullBackupPayload();
-    const jsonStr = JSON.stringify(payload, null, 2);
-    downloadTextFile(jsonStr, `saikiyo2_backup_${makeTimestampStr()}.txt`);
-  });
+  if (DOM.btnExportFile) {
+    DOM.btnExportFile.addEventListener('click', async () => {
+      const payload = await buildFullBackupPayload();
+      const jsonStr = JSON.stringify(payload, null, 2);
+      downloadTextFile(jsonStr, `saikiyo2_backup_${makeTimestampStr()}.txt`);
+    });
+  }
 
   return {
     async open() {
