@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>さいきよ 画像化（リファクタリング版）</title>
+<title>さいきよ 画像化</title>
 <style>
   :root {
     --bg-color: #FFFFFF; --text-color: #111111; --font-family: sans-serif;
@@ -15,6 +15,15 @@
   }
   .container {
     width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 15px;
+  }
+  .top-bar {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  }
+  .top-bar h2 {
+    margin: 0;
+  }
+  .back-link {
+    font-size: 0.95rem; font-weight: bold; color: var(--text-color); text-decoration: underline;
   }
   .primary-controls {
     display: flex; flex-direction: column; gap: 10px; padding: 15px;
@@ -76,7 +85,10 @@
 <body>
 
 <div class="container">
-  <h2>さいきよ 画像化</h2>
+  <div class="top-bar">
+    <h2>さいきよ 画像化</h2>
+    <a href="index.html" class="back-link">メニューへ</a>
+  </div>
   <div class="primary-controls">
     <div class="radio-group">
       <span>文字方向：</span>
@@ -91,7 +103,7 @@
       <label><input type="radio" name="ratio" value="circle"> 円形 (透過)</label>
     </div>
   </div>
-  <textarea id="text-input" placeholder="ここに短歌を入力してください"></textarea>
+  <textarea id="text-input" placeholder="ここにテキストを入力してください"></textarea>
   <div class="action-btns">
     <button type="button" id="btn-undo" disabled>← 戻る</button>
     <button type="button" id="btn-preview">プレビュー更新</button>
@@ -150,12 +162,10 @@
         <label>背景色</label>
         <input type="color" id="color-bg" value="#FFFFFF">
       </div>
-      
       <div class="control-group">
         <label>背景画像</label>
         <input type="file" id="bg-image-input" accept="image/*">
       </div>
-      
       <div class="control-group">
         <label>画像の濃さ</label>
         <input type="range" id="bg-opacity-input" min="0.1" max="1" step="0.05" value="1">
@@ -166,9 +176,8 @@
 </div>
 
 <script>
-/**
- * UI State & Elements Dictionary
- */
+const TATEGAKI_TRANSFER_KEY = 'saikiyo2_tategaki_payload';
+
 const UI = {
   text: document.getElementById('text-input'),
   font: document.getElementById('font-select'),
@@ -191,16 +200,12 @@ const UI = {
   previewImg: document.getElementById('preview-img')
 };
 
-// Global App State
 const AppState = {
   uploadedBgImage: null,
   history: [],
   historyIndex: -1,
 };
 
-/**
- * ユーティリティ・ステート管理モジュール
- */
 const Utils = {
   getRadioValue: (name) => document.querySelector(`input[name="${name}"]:checked`).value,
   setRadioValue: (name, value) => {
@@ -242,12 +247,20 @@ const Utils = {
   updateHistoryButtons: () => {
     UI.btnUndo.disabled = AppState.historyIndex <= 0;
     UI.btnRedo.disabled = AppState.historyIndex >= AppState.history.length - 1;
+  },
+  consumeTransferredPayload: () => {
+    try {
+      const raw = localStorage.getItem(TATEGAKI_TRANSFER_KEY);
+      if (!raw) return;
+      localStorage.removeItem(TATEGAKI_TRANSFER_KEY);
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.text === 'string' && parsed.text.trim()) {
+        UI.text.value = parsed.text;
+      }
+    } catch (_) {}
   }
 };
 
-/**
- * 描画コアエンジン
- */
 const CoreRender = {
   applyCanvasRatio: () => {
     const ratio = Utils.getRadioValue('ratio');
@@ -319,7 +332,7 @@ const CoreRender = {
       for (let j = 0; j < line.length; j++) {
         const char = line[j];
         let drawChar = char; let offsetX = 0; let offsetY = 0;
-        
+
         if (char === '「') drawChar = '﹁'; else if (char === '」') drawChar = '﹂';
         else if (char === '『') drawChar = '﹃'; else if (char === '』') drawChar = '﹄';
         else if (char === '（') drawChar = '︵'; else if (char === '）') drawChar = '︶';
@@ -330,13 +343,12 @@ const CoreRender = {
 
         if (['ー', '―', '〜', '～', '…', '⋯'].includes(char)) {
           ctx.save();
-          // 文字の中心に原点を移動して90度回転
           ctx.translate(currentX + offsetX, currentY + offsetY + (fontSize / 2));
           ctx.rotate(Math.PI / 2);
-          
-          ctx.textBaseline = 'middle'; 
+
+          ctx.textBaseline = 'middle';
           ctx.textAlign = 'center';
-          
+
           if (strokeMode !== 'none') {
             ctx.strokeStyle = strokeMode === 'white' ? '#FFFFFF' : '#888888';
             ctx.lineWidth = 6; ctx.lineJoin = 'round';
@@ -367,7 +379,7 @@ const CoreRender = {
     let maxLineWidth = 0;
     for (const line of lines) {
       const metrics = ctx.measureText(line);
-      if(metrics.width > maxLineWidth) maxLineWidth = metrics.width;
+      if (metrics.width > maxLineWidth) maxLineWidth = metrics.width;
     }
     const blockHeight = lines.length * lineStepY;
     let currentY = Math.max(50, (height - blockHeight) / 2);
@@ -398,7 +410,7 @@ const CoreRender = {
 
     ctx.clearRect(0, 0, w, h);
     ctx.save();
-    
+
     CoreRender.drawBackground(w, h, ratio);
 
     const rawText = UI.text.value.replace(/\(/g, '（').replace(/\)/g, '）').replace(/…/g, '︙');
@@ -418,9 +430,6 @@ const CoreRender = {
   }
 };
 
-/**
- * Event Listeners Registration
- */
 function initEvents() {
   UI.bgRibbon.addEventListener('change', () => { Utils.updateRibbonOpacityState(); CoreRender.draw(); });
   UI.ribbonOpacity.addEventListener('input', CoreRender.draw);
@@ -460,6 +469,7 @@ function initEvents() {
   });
 
   window.addEventListener('load', () => {
+    Utils.consumeTransferredPayload();
     Utils.updateRibbonOpacityState();
     document.fonts.ready.then(() => {
       setTimeout(() => { if (AppState.history.length === 0) Utils.saveState(); CoreRender.draw(); }, 200);
@@ -470,7 +480,6 @@ function initEvents() {
   });
 }
 
-// 起動
 initEvents();
 </script>
 </body>
