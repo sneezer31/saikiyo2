@@ -24,7 +24,7 @@
 
   <main id="timeline"></main>
 
-  <!-- 右下フローティング ＋ ボタン（左下は空きスペース） -->
+  <!-- 右下フローティング ＋ ボタン（80px正円） -->
   <button type="button" id="btn-fab" aria-label="新規入力">＋</button>
 
   <!-- 右端フロート選択ドック -->
@@ -33,7 +33,6 @@
     <button type="button" id="btn-select-all" class="dock-btn secondary">全選択</button>
     <button type="button" id="btn-batch-edit" class="dock-btn primary">一括編集</button>
     <button type="button" id="btn-to-desk" class="dock-btn primary">机へ</button>
-    <button type="button" id="btn-dock-reader" class="dock-btn secondary">閲覧</button>
     <button type="button" id="btn-cancel-selection" class="dock-btn ghost dock-btn-cancel">取消</button>
   </aside>
 
@@ -42,7 +41,7 @@
     <textarea id="input-content" rows="1" placeholder="本文を入力..."></textarea>
     <div class="console-bottom">
       <button type="button" id="btn-search" class="console-btn-icon">検索</button>
-      <textarea id="input-tags" placeholder="タグ（#作品 等）"></textarea>
+      <textarea id="input-tags" placeholder="タグ（#メモ #控 等）"></textarea>
       <button type="button" id="btn-send" class="console-btn-icon">書込</button>
     </div>
   </div>
@@ -51,7 +50,6 @@
   <div id="panel-edit" class="panel panel-full">
     <div class="panel-header">
       <h2 id="edit-panel-title">カード編集</h2>
-      <button type="button" id="btn-close-edit">戻る</button>
     </div>
 
     <div class="edit-group" id="edit-timestamp-group">
@@ -60,7 +58,6 @@
     </div>
 
     <div id="edit-content-view" class="edit-readonly"></div>
-    <button type="button" id="btn-open-reader-edit" class="edit-reader-btn">閲覧</button>
 
     <div class="edit-group">
       <label for="edit-memo">メモ</label>
@@ -71,13 +68,7 @@
       <label for="edit-tags">タグ</label>
       <textarea id="edit-tags" placeholder="#を自動で付与、あとから追加削除自由"></textarea>
       <div id="edit-tags-hint" class="edit-hint" style="display: none;"></div>
-      <div class="tag-helpers">
-        <button type="button" class="helper-tag">#作品</button>
-        <button type="button" class="helper-tag">#メモ</button>
-        <button type="button" class="helper-tag">#アーカイブ</button>
-        <button type="button" class="helper-tag">#未発表</button>
-        <button type="button" class="helper-tag">#既発表</button>
-      </div>
+      <div id="edit-helper-tags" class="tag-helpers"></div>
     </div>
 
     <div class="edit-actions-stack">
@@ -92,19 +83,7 @@
     </div>
   </div>
 
-  <!-- 閲覧パネル -->
-  <div id="panel-reader" class="panel panel-reader">
-    <div class="panel-header">
-      <h2 id="reader-title">閲覧</h2>
-      <div class="panel-header-actions">
-        <button type="button" id="btn-reader-copy">コピー</button>
-        <button type="button" id="btn-close-reader">閉じる</button>
-      </div>
-    </div>
-    <div id="reader-content" class="reader-content"></div>
-  </div>
-
-  <!-- 内蔵 机パネル（連作並べ替え） -->
+  <!-- 内蔵 机パネル（並べ替え） -->
   <div id="panel-desk" class="panel panel-full panel-desk">
     <div id="desk-screen-sort" class="desk-screen active">
       <div class="desk-toolbar">
@@ -117,7 +96,6 @@
         <div id="desk-custom-scrollbar"><div id="desk-custom-thumb"></div></div>
       </div>
       <div class="desk-btn-group">
-        <button type="button" id="desk-btn-close" class="dm-btn secondary">戻る</button>
         <button type="button" id="desk-btn-to-finish" class="dm-btn primary">次へ</button>
       </div>
     </div>
@@ -125,14 +103,13 @@
     <div id="desk-screen-finish" class="desk-screen">
       <div id="desk-preview-area" class="desk-preview-area"></div>
       <div class="desk-meta-form">
-        <input type="text" id="desk-shelf-title" class="wing-input" placeholder="タイトル（空欄なら1首目の冒頭5文字）">
+        <input type="text" id="desk-shelf-title" class="wing-input" placeholder="タイトル（空欄なら1枚目の冒頭5文字）">
         <textarea id="desk-shelf-memo" class="dm-textarea dm-textarea-prose" rows="2" placeholder="メモ（任意）"></textarea>
-        <input type="text" id="desk-shelf-tags" class="wing-input" placeholder="タグ（例: #連作 #提出用）">
+        <input type="text" id="desk-shelf-tags" class="wing-input" placeholder="タグ（例: #まとめ #控）">
       </div>
       <div class="desk-btn-stack">
         <div class="desk-btn-group">
-          <button type="button" id="desk-btn-back-sort" class="dm-btn secondary">戻る</button>
-          <button type="button" id="desk-btn-reader" class="dm-btn secondary">閲覧</button>
+          <button type="button" id="desk-btn-back-sort" class="dm-btn secondary">並べ替えへ</button>
           <button type="button" id="desk-btn-copy" class="dm-btn secondary">コピー</button>
         </div>
         <div class="desk-btn-group">
@@ -148,13 +125,12 @@
       <h2>表示</h2>
       <div class="panel-header-actions">
         <button type="button" id="btn-display-reset">条件クリア</button>
-        <button type="button" class="btn-close-wing">閉じる</button>
       </div>
     </div>
 
-    <div id="display-status" class="panel-status-bar">全期間 0</div>
+    <div id="display-status" class="panel-status-bar">全期間 0枚</div>
 
-    <!-- 常時オープン：期間・タグ・タグ編集・タイムマシン -->
+    <!-- 常時オープン：期間・表示タグ・表示しないタグ・タイムマシン -->
     <div class="panel-box">
       <section class="box-section">
         <h3>期間</h3>
@@ -171,57 +147,25 @@
         <h3>タグ</h3>
         <p class="dm-desc">空白区切りでAND、| でOR絞り込み（空欄なら全タグ）。</p>
         <div class="input-with-clear">
-          <input type="text" id="filter-tag-input" class="wing-input" placeholder="例: #作品 #未発表 / #既発表 | #アーカイブ">
+          <input type="text" id="filter-tag-input" class="wing-input" placeholder="例: #メモ #控 | #保留">
           <button type="button" id="btn-clear-tag" class="clear-mini-btn" title="タグクリア">×</button>
         </div>
-        <div class="filter-chip-group" style="margin-top: 8px;">
-          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#作品">#作品</button>
-          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#アーカイブ">#アーカイブ</button>
-          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#既発表">#既発表</button>
-          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="#未発表">#未発表</button>
-          <button type="button" class="filter-chip filter-helper-tag" data-helper-tag="タグ無し">タグ無し</button>
-        </div>
+        <div id="filter-helper-tags" class="filter-chip-group" style="margin-top: 8px;"></div>
       </section>
 
       <section class="box-section">
-        <h3>タグ編集</h3>
-        <p class="dm-desc">タイムラインのカードに付いているタグだけを書き換えます（本文は変わりません）。</p>
-        <div class="seg-group" style="margin-bottom: 12px;">
-          <button type="button" class="seg-btn active" data-tag-edit-scope="filtered">表示期間対象</button>
-          <button type="button" class="seg-btn" data-tag-edit-scope="all">全期間対象</button>
+        <h3>表示しないタグ</h3>
+        <p class="dm-desc">ここに指定したタグの付いたカードは隠します（そのタグや検索語を指定したときは全貫通で表示）。</p>
+        <div class="input-with-clear">
+          <input type="text" id="hidden-tag-input" class="wing-input" placeholder="例: #ボツ #済">
+          <button type="button" id="btn-clear-hidden-tag" class="clear-mini-btn" title="非表示タグクリア">×</button>
         </div>
-
-        <div class="dm-clean-block">
-          <label>置換・削除（変更後が空欄なら削除）</label>
-          <div class="tag-replace-row">
-            <input type="text" id="tag-edit-from" class="wing-input" placeholder="対象タグ">
-            <span class="date-range-sep">→</span>
-            <input type="text" id="tag-edit-to" class="wing-input" placeholder="変更後（空で削除）">
-            <button type="button" id="btn-tag-replace" class="dm-btn primary side-compact-btn">実行</button>
-          </div>
-        </div>
-
-        <div class="dm-clean-block">
-          <label>一括追加</label>
-          <div class="dm-clean-row">
-            <input type="text" id="tag-edit-add" class="wing-input" placeholder="追加するタグ（複数可）">
-            <button type="button" id="btn-tag-add" class="dm-btn secondary side-compact-btn">追加</button>
-          </div>
-        </div>
-
-        <div class="dm-clean-block">
-          <button type="button" id="btn-tag-clear-all" class="dm-btn danger-flex full-width">対象カードのタグをすべて消去</button>
-        </div>
-
-        <details class="sub-fold">
-          <summary>使用中のタグ一覧（タップで対象タグへ入力）</summary>
-          <div id="tag-edit-active-list" class="filter-chip-group" style="margin-top: 10px;"></div>
-        </details>
+        <div id="hidden-helper-tags" class="filter-chip-group" style="margin-top: 8px;"></div>
       </section>
 
       <section class="box-section">
         <h3>タイムマシン</h3>
-        <p class="dm-desc">でかけるを押すと全期間表示に切り替わり、その日付へ移動します。</p>
+        <p class="dm-desc">でかけるを押すと全期間表示へ一時切替し、その日付へ移動します。</p>
         <div class="date-jump-row">
           <input type="date" id="timemachine-date" class="wing-input">
           <button type="button" id="btn-timemachine-go" class="dm-btn primary jump-btn">でかける</button>
@@ -230,7 +174,72 @@
       </section>
     </div>
 
-    <!-- 折りたたみ：設定（旧コンフィグ＋表示項目） -->
+    <!-- 折りたたみ：工房（ヘルプタグ制作・タグ加工・JSONファイル制作） -->
+    <details id="fold-workshop" class="panel-fold">
+      <summary class="panel-fold-summary">工房</summary>
+      <div class="panel-fold-body">
+        <section class="box-section">
+          <h3>ヘルプタグ制作</h3>
+          <p class="dm-desc">1つずつ作って並べ、不要なものは×で消せます。編集・絞り込み・非表示欄でトグル切替に使えます。</p>
+          <div class="dm-clean-row">
+            <input type="text" id="workshop-new-helper-tag" class="wing-input" placeholder="タグを1つ入力（例: #ボツ）">
+            <button type="button" id="btn-workshop-add-helper-tag" class="dm-btn secondary side-compact-btn">追加</button>
+          </div>
+          <div id="workshop-helper-tag-list" class="filter-chip-group" style="margin-top: 8px;"></div>
+        </section>
+
+        <section class="box-section">
+          <h3>タグ加工</h3>
+          <p class="dm-desc">カードのタグだけを書き換えます（本文は変わりません）。</p>
+          <div class="seg-group" style="margin-bottom: 12px;">
+            <button type="button" class="seg-btn active" data-tag-edit-scope="filtered">表示期間対象</button>
+            <button type="button" class="seg-btn" data-tag-edit-scope="all">全期間対象</button>
+          </div>
+
+          <div class="dm-clean-block">
+            <label>置換・削除（変更後が空欄なら削除）</label>
+            <div class="tag-replace-row">
+              <input type="text" id="tag-edit-from" class="wing-input" placeholder="対象タグ">
+              <span class="date-range-sep">→</span>
+              <input type="text" id="tag-edit-to" class="wing-input" placeholder="変更後（空で削除）">
+              <button type="button" id="btn-tag-replace" class="dm-btn primary side-compact-btn">実行</button>
+            </div>
+          </div>
+
+          <div class="dm-clean-block">
+            <label>一括追加</label>
+            <div class="dm-clean-row">
+              <input type="text" id="tag-edit-add" class="wing-input" placeholder="追加するタグ（複数可）">
+              <button type="button" id="btn-tag-add" class="dm-btn secondary side-compact-btn">追加</button>
+            </div>
+          </div>
+
+          <div class="dm-clean-block">
+            <button type="button" id="btn-tag-clear-all" class="dm-btn danger-flex full-width">対象カードのタグをすべて消去</button>
+          </div>
+
+          <details class="sub-fold">
+            <summary>使用中のタグ一覧（タップで対象タグへ入力）</summary>
+            <div id="tag-edit-active-list" class="filter-chip-group" style="margin-top: 10px;"></div>
+          </details>
+        </section>
+
+        <section class="box-section">
+          <h3>ファイル制作（JSON）</h3>
+          <p class="dm-desc">表示中のカード、またはチェック選択中のカードから配布・共有用JSONファイルを作ります。</p>
+          <div class="seg-group" style="margin-bottom: 10px;">
+            <button type="button" class="seg-btn active" data-json-target="displayed">表示中のカード</button>
+            <button type="button" class="seg-btn" data-json-target="selected">選択中のカード</button>
+          </div>
+          <div class="dm-btn-row">
+            <button type="button" id="btn-workshop-export-share" class="dm-btn primary">共有で送る</button>
+            <button type="button" id="btn-workshop-export-file" class="dm-btn secondary">JSON保存</button>
+          </div>
+        </section>
+      </div>
+    </details>
+
+    <!-- 折りたたみ：設定 -->
     <details id="fold-settings" class="panel-fold">
       <summary class="panel-fold-summary">設定</summary>
       <div class="panel-fold-body">
@@ -333,7 +342,7 @@
     <details id="fold-about" class="panel-fold">
       <summary class="panel-fold-summary">about</summary>
       <div class="panel-fold-body">
-        <p class="dm-desc" style="margin: 0;">さいきよ2 — 短歌の記録・整理・書庫のための静かな道具です。（案内文は完成後に追記予定）</p>
+        <p class="dm-desc" style="margin: 0;">さいきよ2 — テキストの記録・整理・書庫のための静かな道具です。</p>
       </div>
     </details>
   </div>
@@ -343,13 +352,12 @@
     <div id="shelf-list-view">
       <div class="panel-header">
         <h2>書庫</h2>
-        <button type="button" class="btn-close-wing">閉じる</button>
       </div>
 
       <!-- 上段：書庫＆全件バックアップ -->
       <div class="panel-box">
         <section class="box-section">
-          <h3>保管中（細枠：単首 ／ 太枠：リスト）</h3>
+          <h3>保管中（細枠：カード ／ 太枠：リスト）</h3>
           <p class="dm-desc">タイムラインは消えません。ここにはコピーを保管します。</p>
           <div id="shelf-list"></div>
         </section>
@@ -373,7 +381,7 @@
 
         <section class="box-section">
           <h3>ファイル取り込み（差分）</h3>
-          <p class="dm-desc">既存の歌は消さず、未登録のIDだけ取り込みます（初代形式対応・ステイタスはすべてタグ化）。</p>
+          <p class="dm-desc">既存のカードは消さず、未登録のIDだけ取り込みます（初代形式対応・ステータスはすべてタグ化）。</p>
           <div class="dm-btn-row">
             <button type="button" id="btn-import-file" class="dm-btn secondary">ファイルを選択 (.txt / .json)</button>
             <input type="file" id="input-import-file" accept=".txt,.json,text/plain,application/json" style="display: none;">
@@ -382,9 +390,9 @@
 
         <section class="box-section">
           <h3>テキスト取り込み（差分）</h3>
-          <p class="dm-desc">1行空きで別カードとして取り込みます。すでに同じ本文がある歌はスキップします。</p>
-          <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1首目&#10;&#10;2首目&#10;&#10;3首目"></textarea>
-          <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #作品 #未発表）">
+          <p class="dm-desc">1行空きで別カードとして取り込みます。すでに同じ本文があるカードはスキップします。</p>
+          <textarea id="input-bulk-text" class="dm-textarea dm-textarea-prose" rows="5" placeholder="1枚目&#10;&#10;2枚目&#10;&#10;3枚目"></textarea>
+          <input type="text" id="input-bulk-tags" class="wing-input dm-full-input" placeholder="まとめて付けるタグ（任意・例: #メモ #控）">
           <button type="button" id="btn-bulk-import" class="dm-btn primary full-width">テキスト取り込み</button>
         </section>
 
@@ -420,10 +428,9 @@
       <div id="shelf-detail-items" class="shelf-detail-items"></div>
       <div class="shelf-detail-actions">
         <div class="shelf-detail-return-row">
-          <button type="button" id="btn-shelf-reader" class="shelf-act-btn secondary">閲覧</button>
+          <button type="button" id="btn-shelf-tategaki" class="shelf-act-btn secondary">たてがきへ</button>
           <button type="button" id="btn-shelf-copy" class="shelf-act-btn secondary">全文コピー</button>
         </div>
-        <button type="button" id="btn-shelf-backup" class="shelf-act-btn secondary">この中身をバックアップ</button>
         <div class="shelf-detail-return-row">
           <button type="button" id="btn-shelf-return-scatter" class="shelf-act-btn primary">バラでTLへ</button>
           <button type="button" id="btn-shelf-return-block" class="shelf-act-btn primary">まとめてTLへ</button>
