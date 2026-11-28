@@ -150,7 +150,7 @@ export function updateSelectionBarUI(selectedCount, DOM) {
   if (selectedCount > 0) {
     DOM.selectionDock.classList.add('open');
     DOM.selectionDock.setAttribute('aria-hidden', 'false');
-    DOM.selectionCount.textContent = String(selectedCount);
+    DOM.selectionCount.textContent = `${selectedCount}枚`;
     DOM.btnFab.style.display = 'none';
   } else {
     DOM.selectionDock.classList.remove('open');
