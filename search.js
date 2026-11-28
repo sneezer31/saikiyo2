@@ -20,7 +20,7 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
   function normalizeQuery(str) {
     return (str || '')
       .replace(/[｜│❘]/g, '|')
-      .replace(/ /g, ' ')
+      .replace(/\u3000/g, ' ')
       .toLowerCase();
   }
 
@@ -50,11 +50,11 @@ export function initSearchModule({ getVisibleCardIds, onSearchStateChanged, onCl
         DOM.banner.style.display = 'none';
       } else if (mode === 'searching') {
         DOM.banner.style.display = 'flex';
-        DOM.bannerText.textContent = `検索中 (${matchedCount})`;
+        DOM.bannerText.textContent = `検索中 (${matchedCount}枚)`;
         if (DOM.btnBannerFix) DOM.btnBannerFix.style.display = 'inline-block';
       } else if (mode === 'suiko') {
         DOM.banner.style.display = 'flex';
-        DOM.bannerText.textContent = `推敲固定 (${matchedCount}・新規書込を自動追加)`;
+        DOM.bannerText.textContent = `推敲固定 (${matchedCount}枚・新規書込を自動追加)`;
         if (DOM.btnBannerFix) DOM.btnBannerFix.style.display = 'none';
       }
     }
