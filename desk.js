@@ -4,7 +4,7 @@ import { saveShelf } from './db.js';
 
 const PREFS_KEY = 'saikiyo2_rensaku_prefs';
 
-export function initDeskModule({ onSavedToShelf, onOpenReader }) {
+export function initDeskModule({ onSavedToShelf } = {}) {
   let prefs = { font: 'gothic', direction: 'horizontal', wrap: 'false' };
   let orderedCards = [];
   let finalResultText = '';
@@ -40,14 +40,12 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     btnFont: document.getElementById('desk-toggle-font'),
     btnDir: document.getElementById('desk-toggle-dir'),
     btnWrap: document.getElementById('desk-toggle-wrap'),
-    btnClose: document.getElementById('desk-btn-close'),
     btnToFinish: document.getElementById('desk-btn-to-finish'),
     previewArea: document.getElementById('desk-preview-area'),
     inputTitle: document.getElementById('desk-shelf-title'),
     inputMemo: document.getElementById('desk-shelf-memo'),
     inputTags: document.getElementById('desk-shelf-tags'),
     btnBackSort: document.getElementById('desk-btn-back-sort'),
-    btnReader: document.getElementById('desk-btn-reader'),
     btnCopy: document.getElementById('desk-btn-copy'),
     btnSaveShelf: document.getElementById('desk-btn-save-shelf')
   };
@@ -393,10 +391,6 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
     applyPrefsToSortArea();
   });
 
-  DOM.btnClose.addEventListener('click', () => {
-    DOM.panel.classList.remove('active');
-  });
-
   DOM.btnToFinish.addEventListener('click', () => {
     const els = Array.from(DOM.sortArea.children).filter(
       el => el.classList.contains('desk-tanzaku') && !el.classList.contains('dragging')
@@ -411,11 +405,6 @@ export function initDeskModule({ onSavedToShelf, onOpenReader }) {
   });
 
   DOM.btnBackSort.addEventListener('click', () => showScreen('sort'));
-
-  DOM.btnReader.addEventListener('click', () => {
-    if (!finalResultText) return;
-    if (onOpenReader) onOpenReader(`閲覧 (${orderedCards.length})`, finalResultText);
-  });
 
   DOM.btnCopy.addEventListener('click', async () => {
     if (!finalResultText) return;
