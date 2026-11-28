@@ -11,6 +11,8 @@ import {
 } from './db.js';
 import { formatDateWithWeekday } from './ui.js';
 
+const TATEGAKI_TRANSFER_KEY = 'saikiyo2_tategaki_payload';
+
 function makeTimestampStr() {
   const d = new Date();
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
@@ -44,7 +46,7 @@ async function shareOrDownload(jsonStr, fileName, title, text) {
   alert('ファイルとして保存しました。');
 }
 
-export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onCloseWings, onOpenReader }) {
+export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onCloseWings }) {
   let currentDetailShelfId = null;
 
   const drag = {
@@ -73,19 +75,17 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     shelfDetailMemo: document.getElementById('shelf-detail-memo'),
     shelfDetailItems: document.getElementById('shelf-detail-items'),
     btnShelfBackList: document.getElementById('btn-shelf-back-list'),
-    btnShelfReader: document.getElementById('btn-shelf-reader'),
+    btnShelfTategaki: document.getElementById('btn-shelf-tategaki'),
     btnShelfCopy: document.getElementById('btn-shelf-copy'),
-    btnShelfBackup: document.getElementById('btn-shelf-backup'),
     btnShelfReturnScatter: document.getElementById('btn-shelf-return-scatter'),
     btnShelfReturnBlock: document.getElementById('btn-shelf-return-block'),
-    // 全件バックアップ（書庫に一本化）
     btnExportShare: document.getElementById('btn-export-share'),
     btnExportFile: document.getElementById('btn-export-file')
   };
 
   function showListView() {
-    DOM.shelfDetailView.style.display = 'none';
-    DOM.shelfListView.style.display = 'block';
+    if (DOM.shelfDetailView) DOM.shelfDetailView.style.display = 'none';
+    if (DOM.shelfListView) DOM.shelfListView.style.display = 'block';
     currentDetailShelfId = null;
   }
 
@@ -120,7 +120,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
       const dateStr = formatDateWithWeekday(shelf.id);
       const tagStr = Array.isArray(shelf.tags) && shelf.tags.length > 0 ? '  ' + shelf.tags.join(' ') : '';
       metaEl.textContent = isList
-        ? `${items.length} / ${dateStr}${tagStr}`
+        ? `${items.length}枚 / ${dateStr}${tagStr}`
         : `${dateStr}${tagStr}`;
 
       main.appendChild(titleEl);
@@ -161,7 +161,6 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     });
   }
 
-  // --- D&D並べ替え（250ms長押し・抜け殻・時間ベース穏やかエッジスクロール） ---
   function handlePointerDown(e, row) {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
 
@@ -334,7 +333,6 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     await bulkSaveShelves(shelves);
   }
 
-  // --- 詳細ビュー ---
   async function openDetail(shelfId) {
     const shelf = await getShelf(shelfId);
     if (!shelf) return;
@@ -346,7 +344,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     const dateStr = formatDateWithWeekday(shelf.id);
     const tagStr = Array.isArray(shelf.tags) && shelf.tags.length > 0 ? '  ' + shelf.tags.join(' ') : '';
     DOM.shelfDetailMeta.textContent = items.length > 1
-      ? `${items.length} / ${dateStr}${tagStr}`
+      ? `${items.length}枚 / ${dateStr}${tagStr}`
       : `${dateStr}${tagStr}`;
 
     if (shelf.memo && shelf.memo.trim()) {
@@ -383,13 +381,24 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
 
   DOM.btnShelfBackList.addEventListener('click', showListView);
 
-  DOM.btnShelfReader.addEventListener('click', async () => {
-    if (!currentDetailShelfId) return;
-    const shelf = await getShelf(currentDetailShelfId);
-    if (!shelf || !Array.isArray(shelf.items)) return;
-    const text = shelf.items.map(i => i.content).join('\n\n');
-    if (onOpenReader) onOpenReader(shelf.title || '閲覧', text);
-  });
+  if (DOM.btnShelfTategaki) {
+    DOM.btnShelfTategaki.addEventListener('click', async () => {
+      if (!currentDetailShelfId) return;
+      const shelf = await getShelf(currentDetailShelfId);
+      if (!shelf || !Array.isArray(shelf.items) || shelf.items.length === 0) return;
+
+      const text = shelf.items.map(i => i.content).join('\n\n');
+      try {
+        localStorage.setItem(TATEGAKI_TRANSFER_KEY, JSON.stringify({
+          text,
+          title: shelf.title || '無題',
+          sentAt: Date.now()
+        }));
+      } catch (_) {}
+
+      location.href = 'tategaki.html';
+    });
+  }
 
   DOM.btnShelfCopy.addEventListener('click', async () => {
     if (!currentDetailShelfId) return;
@@ -403,25 +412,6 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     } catch (_) {
       alert('コピーに失敗しました。');
     }
-  });
-
-  // 個別書庫バックアップ
-  DOM.btnShelfBackup.addEventListener('click', async () => {
-    if (!currentDetailShelfId) return;
-    const shelf = await getShelf(currentDetailShelfId);
-    if (!shelf) return;
-
-    const payload = {
-      app: 'saikiyo2',
-      version: 2,
-      type: 'shelf_backup',
-      exportedAt: Date.now(),
-      cards: [],
-      shelves: [shelf]
-    };
-    const jsonStr = JSON.stringify(payload, null, 2);
-    const fileName = `saikiyo2_shelf_${makeTimestampStr()}.txt`;
-    await shareOrDownload(jsonStr, fileName, `さいきよ2 書庫バックアップ`, shelf.title || '無題');
   });
 
   async function allocateUniqueIds(count) {
@@ -455,7 +445,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     await bulkSaveCards(newCards);
     await onTimelineUpdated();
     onCloseWings();
-    alert(`バラでタイムラインへ追加しました (${newCards.length})。`);
+    alert(`バラでタイムラインへ追加しました (${newCards.length}枚)。`);
   });
 
   DOM.btnShelfReturnBlock.addEventListener('click', async () => {
@@ -478,7 +468,6 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
     alert(`「${shelf.title || '無題'}」をまとめてタイムラインへ追加しました。`);
   });
 
-  // --- 全件バックアップ（書庫に一本化） ---
   async function buildFullBackupPayload() {
     const [cards, shelves] = await Promise.all([loadAllCards(), loadAllShelves()]);
     return {
@@ -498,7 +487,7 @@ export function initShelfModule({ onTimelineUpdated, onShelfCountChanged, onClos
       jsonStr,
       fileName,
       `さいきよ2 全件バックアップ`,
-      `カード ${payload.cards.length} ／ 書庫 ${payload.shelves.length}`
+      `カード ${payload.cards.length}枚 ／ 書庫 ${payload.shelves.length}件`
     );
   });
 
